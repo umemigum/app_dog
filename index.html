@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>ピラミッド犬 〜いやしのまきば〜</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+
+  <div id="title">
+    <h1>ピラミッド犬</h1>
+    <p>いやしの まきば</p>
+  </div>
+
+  <button id="sound-toggle" title="おと オン/オフ">🔊</button>
+
+  <div id="hint">タップすると よろこぶよ ／ ながおしで なでなで</div>
+
+  <div id="bubble"></div>
+  <div id="fx-layer"></div>
+
+  <script type="module" src="main.js?v=5"></script>
+</body>
+</html>
