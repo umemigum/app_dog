@@ -337,6 +337,25 @@ for name, ec in (("EyeClosedL", eyeL_c), ("EyeClosedR", eyeR_c)):
     lid.hide_render = True
     extras.append(lid)
 
+# ---------------------------------------------------------------- 内側ピラミッド
+# 体を「穴のない滑らかな四角錐」として構造的に確定させる。
+# 体シェルにどんな隙間があっても、見えるのは常にこの体色の面になる。
+c_b, d_b, bmn_b, bmx_b = info(body)
+apex_z = bmx_b.z
+base_half = max(d_b.x, d_b.y) / 2
+mat_inner = make_mat("InnerBody",
+                     (float(skin_body[0]), float(skin_body[1]), float(skin_body[2])), 0.55)
+depth = (apex_z - 0.06) * 0.985
+bpy.ops.mesh.primitive_cone_add(vertices=4, radius1=base_half * math.sqrt(2) * 0.90,
+                                radius2=0, depth=depth,
+                                location=(0, 0, 0.06 + depth / 2),
+                                rotation=(0, 0, math.radians(45)))
+inner = bpy.context.object
+inner.name = "InnerBody"
+inner.data.materials.append(mat_inner)
+extras.append(inner)
+print("INNER PYRAMID: base_half =", round(base_half, 3), " apex =", round(apex_z, 3))
+
 # ---------------------------------------------------------------- ピボット
 def set_origin(o, pivot):
     scene.cursor.location = pivot
@@ -346,30 +365,12 @@ def set_origin(o, pivot):
     bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
 
 
-side_tilt = math.atan2(0.7, H)
+# 耳はパッチ構造のため穴埋めすると表面にヒビが出る。
+# 内側はアプリの両面描画で自然な暗い裏地に見えるので、そのままにする。
 for ear, sx in ((earL, -1), (earR, 1)):
     center, dims, bmins, bmaxs = info(ear)
     pivot = Vector((center.x - sx * dims.x * 0.25, center.y, bmaxs.z - 0.02))
     set_origin(ear, pivot)
-
-    # 耳の内側キャップ: 持ち上げたとき空洞が見えないよう、
-    # 付け根の内側面に沿った黒い板を耳に貼り付ける(耳と一緒に回る)
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=14, radius=1.0)
-    cap = bpy.context.object
-    for v in cap.data.vertices:
-        v.co.x *= 0.05
-        v.co.y *= dims.y * 0.46
-        v.co.z *= dims.z * 0.46
-    cap.data.materials.append(mat_earcap)
-    for pp in cap.data.polygons:
-        pp.use_smooth = True
-    cap.rotation_euler = (0, -sx * side_tilt, 0)
-    cap.location = (center.x - sx * (dims.x / 2 - 0.05), center.y, center.z)
-    bpy.ops.object.select_all(action="DESELECT")
-    cap.select_set(True)
-    ear.select_set(True)
-    bpy.context.view_layer.objects.active = ear
-    bpy.ops.object.join()
 
 center, dims, bmins, bmaxs = info(tongue["o"])
 set_origin(tongue["o"], Vector(((bmins.x + bmaxs.x) / 2, bmaxs.y - 0.005, bmaxs.z - 0.005)))
