@@ -188,6 +188,11 @@ print("EYES:", eye_obj.name, tuple(round(v, 3) for v in eye_c),
 
 mirror_c = Vector((-eye_c.x, eye_c.y, eye_c.z))
 
+# 目を2割拡大して、下地(塗りつぶした眼窩)を完全に覆う
+for obj, cc in ((eye_obj, eye_c), (mirror, mirror_c)):
+    for v in obj.data.vertices:
+        v.co = cc + (Vector(v.co) - cc) * 1.2
+
 # ---------------------------------------------------------------- 焼き付いた目を塗りつぶし
 # 目のまわりの暗いテクセルを肌色に塗る。目の残骸は本体だけでなく
 # マズルパーツ側にも含まれているので、両方に同じ処理をかける
@@ -231,6 +236,44 @@ for obj in targets:
     print(f"FUSED EYES {obj.name}: painted {len(dark_px)} polys, "
           f"skin = {tuple(round(float(v), 2) for v in skin)}")
 
+# ---------------------------------------------------------------- 耳の下の影を体色に塗る
+# 耳を持ち上げたときに、焼き付いた暗い影ではなく体色が見えるようにする
+body_img = None
+for m in body.data.materials:
+    for n in m.node_tree.nodes:
+        if n.type == "TEX_IMAGE" and n.image:
+            body_img = n.image
+            break
+W, Hpx = body_img.size
+px = np.array(body_img.pixels[:], dtype=np.float32).reshape(Hpx, W, 4)
+uvd = body.data.uv_layers.active.data
+
+ear_zones = []
+for e in (earL, earR):
+    center, dims, bmins, bmaxs = info(e)
+    ear_zones.append((center, dims / 2 + Vector((0.06, 0.06, 0.06))))
+
+region, dark_px = [], []
+for p in body.data.polygons:
+    pc = Vector(p.center)
+    for zc, zh in ear_zones:
+        if abs(pc.x - zc.x) < zh.x and abs(pc.y - zc.y) < zh.y and abs(pc.z - zc.z) < zh.z:
+            uv = uvd[p.loop_start].uv
+            xi = min(W - 1, max(0, int(uv.x * W)))
+            yi = min(Hpx - 1, max(0, int(uv.y * Hpx)))
+            c = px[yi, xi, :3]
+            if c.max() < 0.6:
+                dark_px.append((yi, xi))
+            else:
+                region.append(c)
+            break
+skin_body = np.mean(region, axis=0) if region else np.array([0.92, 0.78, 0.54], dtype=np.float32)
+for yi, xi in dark_px:
+    px[max(0, yi - 5):yi + 6, max(0, xi - 5):xi + 6, :3] = skin_body
+body_img.pixels.foreach_set(px.ravel())
+body_img.update()
+print("UNDER-EAR PAINTED:", len(dark_px), "polys")
+
 # ---------------------------------------------------------------- とじ目(∩)
 def make_mat(name, rgb, rough):
     m = bpy.data.materials.new(name)
@@ -242,6 +285,9 @@ def make_mat(name, rgb, rough):
 
 
 mat_line = make_mat("ClosedEyeLine", (0.05, 0.04, 0.035), 0.25)
+mat_lid = make_mat("LidSkin", (0.92, 0.78, 0.54), 0.55)
+mat_plug = make_mat("MouthPlug", (0.93, 0.86, 0.72), 0.5)
+mat_earcap = make_mat("EarCap", (0.07, 0.06, 0.05), 0.3)
 
 eyeR_c = eye_c if eye_c.x >= 0 else mirror_c
 eyeL_c = mirror_c if eye_c.x >= 0 else eye_c
@@ -255,23 +301,41 @@ print("FACE D =", round(D, 3))
 
 extras = []
 for name, ec in (("EyeClosedL", eyeL_c), ("EyeClosedR", eyeR_c)):
+    # 肌色のまぶたドーム(空洞や眼窩を覆う)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=14, radius=eye_w * 0.85)
+    lid = bpy.context.object
+    for v in lid.data.vertices:
+        v.co.z *= 0.35
+    lid.data.materials.append(mat_lid)
+    for pp in lid.data.polygons:
+        pp.use_smooth = True
+
+    # ∩ のライン
     bpy.ops.mesh.primitive_torus_add(major_radius=eye_w * 0.62, minor_radius=eye_w * 0.17,
                                      major_segments=28, minor_segments=10)
-    t = bpy.context.object
-    t.name = name
-    t.data.materials.append(mat_line)
+    arc = bpy.context.object
+    arc.data.materials.append(mat_line)
     bm = bmesh.new()
-    bm.from_mesh(t.data)
+    bm.from_mesh(arc.data)
     doomed = [v for v in bm.verts if v.co.y < -1e-4]
     bmesh.ops.delete(bm, geom=doomed, context="VERTS")
-    bm.to_mesh(t.data)
+    bm.to_mesh(arc.data)
     bm.free()
-    for pp in t.data.polygons:
+    for pp in arc.data.polygons:
         pp.use_smooth = True
-    t.location = Vector(ec) + n_out * (eye_w * 0.4)
-    t.rotation_euler = (tilt, 0, 0)
-    t.hide_render = True
-    extras.append(t)
+    arc.location = (0, 0, eye_w * 0.34)
+
+    bpy.ops.object.select_all(action="DESELECT")
+    lid.select_set(True)
+    arc.select_set(True)
+    bpy.context.view_layer.objects.active = lid
+    bpy.ops.object.join()
+    lid = bpy.context.view_layer.objects.active
+    lid.name = name
+    lid.rotation_euler = (tilt, 0, 0)
+    lid.location = Vector(ec) + n_out * (eye_w * 0.28)
+    lid.hide_render = True
+    extras.append(lid)
 
 # ---------------------------------------------------------------- ピボット
 def set_origin(o, pivot):
@@ -282,13 +346,48 @@ def set_origin(o, pivot):
     bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
 
 
+side_tilt = math.atan2(0.7, H)
 for ear, sx in ((earL, -1), (earR, 1)):
     center, dims, bmins, bmaxs = info(ear)
     pivot = Vector((center.x - sx * dims.x * 0.25, center.y, bmaxs.z - 0.02))
     set_origin(ear, pivot)
 
+    # 耳の内側キャップ: 持ち上げたとき空洞が見えないよう、
+    # 付け根の内側面に沿った黒い板を耳に貼り付ける(耳と一緒に回る)
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=14, radius=1.0)
+    cap = bpy.context.object
+    for v in cap.data.vertices:
+        v.co.x *= 0.05
+        v.co.y *= dims.y * 0.46
+        v.co.z *= dims.z * 0.46
+    cap.data.materials.append(mat_earcap)
+    for pp in cap.data.polygons:
+        pp.use_smooth = True
+    cap.rotation_euler = (0, -sx * side_tilt, 0)
+    cap.location = (center.x - sx * (dims.x / 2 - 0.05), center.y, center.z)
+    bpy.ops.object.select_all(action="DESELECT")
+    cap.select_set(True)
+    ear.select_set(True)
+    bpy.context.view_layer.objects.active = ear
+    bpy.ops.object.join()
+
 center, dims, bmins, bmaxs = info(tongue["o"])
 set_origin(tongue["o"], Vector(((bmins.x + bmaxs.x) / 2, bmaxs.y - 0.005, bmaxs.z - 0.005)))
+
+# 口栓: 舌をしまったときに穴が見えないよう、舌の根元にクリーム色の栓を置く
+bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=14, radius=1.0)
+plug = bpy.context.object
+plug.name = "MouthPlug"
+for v in plug.data.vertices:
+    v.co.x *= dims.x * 0.62
+    v.co.y *= 0.05
+    v.co.z *= dims.z * 0.62
+plug.data.materials.append(mat_plug)
+for pp in plug.data.polygons:
+    pp.use_smooth = True
+plug.rotation_euler = (tilt - math.pi / 2, 0, 0)  # 前面の斜面に沿わせる
+plug.location = ((bmins.x + bmaxs.x) / 2, bmaxs.y - 0.02, (bmins.z + bmaxs.z) / 2 + 0.01)
+extras.append(plug)
 
 # ---------------------------------------------------------------- 書き出し
 root = bpy.data.objects.new("Piramidog", None)

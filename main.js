@@ -454,7 +454,7 @@ scene.add(dog.group);
 window.piramidog = dog;
 window.__debugCam = { camera, controls: () => controls };
 
-const MODEL_VERSION = 'tripo-3';
+const MODEL_VERSION = 'tripo-4';
 new GLTFLoader().load(`assets/piramidog.glb?v=${MODEL_VERSION}`, (gltf) => {
   dog.attachModel(gltf.scene);
 });
