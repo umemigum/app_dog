@@ -222,6 +222,11 @@ class PyramidDog {
     this.petting = false;
     this.tongueOut = 1;
     this.tongueTimer = 4;
+    this.onArrive = null;   // 目的地に着いたときのコールバック
+    this.attendAngle = 0;   // こっちむいて の向き
+    this.eatT = 0;
+    this.nextBite = 0;
+    this.eating = null;     // 食べているりんご
   }
 
   attachModel(root) {
@@ -286,12 +291,30 @@ class PyramidDog {
     this.setState('idle', 1 + Math.random() * 2);
   }
 
+  attend(angle) {
+    if (this.state === 'eat') return;
+    if (this.state === 'sleep') this.wake();
+    this.attendAngle = angle;
+    this.onArrive = null;
+    this.setState('attend', 1.4);
+  }
+
+  goTo(x, z, onArrive) {
+    if (this.state === 'eat') return;
+    if (this.state === 'sleep') this.wake();
+    this.target.set(x, z);
+    this.onArrive = onArrive || null;
+    this.setState('walk', 30);
+  }
+
   react() {
+    if (this.state === 'eat') return; // もぐもぐ中はタップに反応しない
     if (this.state === 'sleep') {
       this.wake();
       showBubble('はっ! おきたよ!', 2);
       return;
     }
+    this.onArrive = null;
     this.state = 'react';
     this.reactT = 0;
     this.reactBase = this.heading;
@@ -327,6 +350,7 @@ class PyramidDog {
     let hopY = 0;
     let squash = 1;
     let rock = 0;
+    let pitch = 0;
     let earTarget = 0;
     let eyesClosed = false;
 
@@ -346,6 +370,11 @@ class PyramidDog {
         const dist = Math.hypot(dx, dz);
         if (dist < 0.25 || this.stateTime <= 0) {
           this.setState('idle', 1.5 + Math.random() * 3);
+          if (this.onArrive) {
+            const cb = this.onArrive;
+            this.onArrive = null;
+            cb();
+          }
           break;
         }
         const want = Math.atan2(dx, dz);
@@ -373,6 +402,30 @@ class PyramidDog {
           this.zzzTimer = 1.6;
         }
         if (this.stateTime <= 0) this.wake();
+        break;
+      }
+
+      case 'attend': {
+        // 呼ばれた方をぴょこっと向く
+        this.stateTime -= dt;
+        this.heading += shortestAngle(this.heading, this.attendAngle) * Math.min(1, dt * 6);
+        squash = 1 + Math.sin(t * 2.2) * 0.015;
+        earTarget = 0.7;
+        if (this.stateTime <= 0) this.setState('idle', 2 + Math.random() * 2);
+        break;
+      }
+
+      case 'eat': {
+        // もぐもぐ(前傾でぱくぱく、りんごがひとくちずつ減る)
+        this.eatT += dt;
+        pitch = Math.abs(Math.sin(this.eatT * 6)) * 0.15;
+        squash = 1 + Math.sin(this.eatT * 12) * 0.02;
+        earTarget = 0.3;
+        if (this.eating && this.eatT >= this.nextBite) {
+          this.nextBite += 0.55;
+          biteApple();
+        }
+        if (this.eatT > 2.3) finishEating();
         break;
       }
 
@@ -404,6 +457,7 @@ class PyramidDog {
     this.group.rotation.y = this.heading;
     this.body.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash));
     this.body.rotation.z = rock;
+    this.body.rotation.x = pitch;
 
     this.earLift += (earTarget - this.earLift) * Math.min(1, dt * 6);
 
@@ -479,6 +533,131 @@ const blobShadow = (() => {
   scene.add(mesh);
   return mesh;
 })();
+
+// ---------------------------------------------------------------------------
+// アクション(こっちむいて・おいで・りんご)
+// ---------------------------------------------------------------------------
+function cameraGroundDir() {
+  const v = new THREE.Vector3(camera.position.x, 0, camera.position.z);
+  if (v.lengthSq() < 0.01) v.set(0, 0, 1);
+  return v.normalize();
+}
+
+function angleToCamera() {
+  return Math.atan2(
+    camera.position.x - dog.group.position.x,
+    camera.position.z - dog.group.position.z
+  );
+}
+
+function lookAtMe() {
+  if (dog.state === 'eat') return;
+  dog.attend(angleToCamera());
+  playBark();
+  showBubble(randomOf(['なあに?', 'よんだ?', 'わん!']), 2);
+}
+
+function comeHere() {
+  if (dog.state === 'eat') return;
+  const dir = cameraGroundDir();
+  const dist = Math.min(4.2, Math.max(2.5, camera.position.length() * 0.4));
+  showBubble(randomOf(['いま いくー!', 'とことこ…']), 2);
+  dog.goTo(dir.x * dist, dir.z * dist, () => {
+    dog.attend(angleToCamera());
+    playChirp();
+    spawnFxAt(dog.group.position, 'heart', '💛', 2);
+    showBubble(randomOf(['きたよ!', 'なでてくれる?']), 2.5);
+  });
+}
+
+let apple = null;
+
+function makeApple() {
+  const g = new THREE.Group();
+  const fruit = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 20, 16),
+    new THREE.MeshStandardMaterial({ color: 0xd93b36, roughness: 0.35 })
+  );
+  fruit.scale.y = 0.92;
+  fruit.position.y = 0.15;
+  fruit.castShadow = true;
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.012, 0.018, 0.09, 6),
+    new THREE.MeshStandardMaterial({ color: 0x6d4a2a, roughness: 0.9 })
+  );
+  stem.position.y = 0.32;
+  stem.rotation.z = 0.15;
+  const leaf = new THREE.Mesh(
+    new THREE.SphereGeometry(0.05, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0x5fae4a, roughness: 0.7 })
+  );
+  leaf.scale.set(1, 0.35, 0.55);
+  leaf.position.set(0.06, 0.34, 0);
+  g.add(fruit, stem, leaf);
+  return g;
+}
+
+function giveApple() {
+  if (apple || dog.state === 'eat') return;
+  if (dog.state === 'sleep') dog.wake();
+  const dir = cameraGroundDir();
+  const pos = dog.group.position;
+  // 犬とカメラの間あたりにぽとんと落とす
+  const ax = THREE.MathUtils.clamp(pos.x + dir.x * 1.7, -7, 7);
+  const az = THREE.MathUtils.clamp(pos.z + dir.z * 1.7, -7, 7);
+  apple = makeApple();
+  apple.position.set(ax, 2.6, az);
+  apple.userData.vy = 0;
+  scene.add(apple);
+  playTone({ freq: 520, freqEnd: 780, dur: 0.15, type: 'sine', gain: 0.12 });
+  showBubble(randomOf(['わっ、りんごだ!', 'いいにおい!']), 2);
+  // りんごの少し手前まで歩いてから食べる
+  const dx = ax - pos.x;
+  const dz = az - pos.z;
+  const d = Math.hypot(dx, dz) || 1;
+  dog.goTo(ax - (dx / d) * 0.85, az - (dz / d) * 0.85, () => {
+    if (!apple) return;
+    dog.heading = Math.atan2(
+      apple.position.x - dog.group.position.x,
+      apple.position.z - dog.group.position.z
+    );
+    dog.eating = apple;
+    dog.eatT = 0;
+    dog.nextBite = 0.5;
+    dog.setState('eat', 10);
+  });
+}
+
+function biteApple() {
+  if (!apple) return;
+  playCrunch();
+  const s = apple.scale.x * 0.62;
+  if (s < 0.28) {
+    scene.remove(apple);
+    apple = null;
+    dog.eating = null;
+  } else {
+    apple.scale.setScalar(s);
+  }
+}
+
+function finishEating() {
+  if (apple) {
+    scene.remove(apple);
+    apple = null;
+  }
+  dog.eating = null;
+  spawnFxAt(dog.group.position, 'heart', '💛', 3);
+  showBubble(randomOf(['おいしい〜!', 'ごちそうさま!', 'りんご だいすき!']), 2.5);
+  playChirp();
+  dog.setState('idle', 2 + Math.random() * 2);
+}
+
+window.__actions = { lookAtMe, comeHere, giveApple };
+
+document.getElementById('btn-look').addEventListener('click', (e) => { e.stopPropagation(); lookAtMe(); });
+document.getElementById('btn-come').addEventListener('click', (e) => { e.stopPropagation(); comeHere(); });
+document.getElementById('btn-apple').addEventListener('click', (e) => { e.stopPropagation(); giveApple(); });
 
 // ---------------------------------------------------------------------------
 // おしゃべり(吹き出し)
@@ -626,6 +805,26 @@ function playPet() {
   playTone({ freq: 880, freqEnd: 700, dur: 0.25, type: 'sine', gain: 0.08 });
 }
 
+// りんごをかじる「しゃくっ」(ノイズバースト)
+function playCrunch() {
+  if (!audio.ctx) return;
+  const dur = 0.09;
+  const buf = audio.ctx.createBuffer(1, Math.floor(audio.ctx.sampleRate * dur), audio.ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+  }
+  const src = audio.ctx.createBufferSource();
+  src.buffer = buf;
+  const f = audio.ctx.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.value = 1400;
+  const g = audio.ctx.createGain();
+  g.gain.value = 0.35;
+  src.connect(f).connect(g).connect(audio.master);
+  src.start(audio.ctx.currentTime);
+}
+
 const soundBtn = document.getElementById('sound-toggle');
 soundBtn.addEventListener('click', (e) => {
   e.stopPropagation();
@@ -715,6 +914,20 @@ function animate() {
   const airFade = Math.max(0.3, 1 - dog.group.position.y * 0.8);
   blobShadow.scale.setScalar(airFade);
   blobShadow.material.opacity = airFade;
+
+  // りんごの落下・バウンド
+  if (apple && apple.userData.vy !== undefined) {
+    apple.userData.vy -= 14 * dt;
+    apple.position.y += apple.userData.vy * dt;
+    if (apple.position.y <= 0) {
+      apple.position.y = 0;
+      if (Math.abs(apple.userData.vy) > 1.2) {
+        apple.userData.vy = -apple.userData.vy * 0.35;
+      } else {
+        delete apple.userData.vy;
+      }
+    }
+  }
 
   // 雲の流れ
   for (const c of clouds) {
