@@ -413,7 +413,7 @@ class PyramidDog {
     // 歩行・リアクション中だけ小さくぱたぱたさせる
     const flapping = this.state === 'walk' || this.state === 'react';
     const flap = flapping ? Math.sin(t * 6) * 0.03 : 0;
-    const lift = this.earLift * 0.55 + flap;
+    const lift = this.earLift * 0.7 + flap;
     _q.setFromAxisAngle(_earAxis, -lift);
     this.earL.quaternion.copy(this.earBaseL).multiply(_q);
     _q.setFromAxisAngle(_earAxis, lift);
@@ -454,7 +454,8 @@ scene.add(dog.group);
 window.piramidog = dog;
 window.__debugCam = { camera, controls: () => controls };
 
-new GLTFLoader().load('assets/piramidog.glb', (gltf) => {
+const MODEL_VERSION = 'tripo-3';
+new GLTFLoader().load(`assets/piramidog.glb?v=${MODEL_VERSION}`, (gltf) => {
   dog.attachModel(gltf.scene);
 });
 
