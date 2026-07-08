@@ -92,95 +92,6 @@ def tex_avg(o):
     return np.array([0.5, 0.5, 0.5])
 
 
-def image_for_object(obj):
-    for m in obj.data.materials:
-        if not m or not m.node_tree:
-            continue
-        for n in m.node_tree.nodes:
-            if n.type == "TEX_IMAGE" and n.image:
-                return n.image
-    return None
-
-
-def uv_to_pixel(uv, w, h):
-    return (
-        min(w - 1, max(0, int(uv.x * w))),
-        min(h - 1, max(0, int(uv.y * h))),
-    )
-
-
-def weighted_average(samples, fallback):
-    total = sum(weight for _, weight in samples)
-    if total <= 0:
-        return np.array(fallback, dtype=np.float32)
-    acc = sum(color * weight for color, weight in samples)
-    return np.array(acc / total, dtype=np.float32)
-
-
-def box_blur_axis(arr, radius, axis):
-    if radius <= 0:
-        return arr
-    pad = [(0, 0)] * arr.ndim
-    pad[axis] = (radius, radius)
-    padded = np.pad(arr, pad, mode="constant", constant_values=0)
-    csum = np.cumsum(padded, axis=axis, dtype=np.float32)
-    zero_shape = list(csum.shape)
-    zero_shape[axis] = 1
-    csum = np.concatenate([np.zeros(zero_shape, dtype=np.float32), csum], axis=axis)
-    width = radius * 2 + 1
-    hi = [slice(None)] * csum.ndim
-    lo = [slice(None)] * csum.ndim
-    hi[axis] = slice(width, None)
-    lo[axis] = slice(None, -width)
-    return (csum[tuple(hi)] - csum[tuple(lo)]) / width
-
-
-def feathered_paint(px, points, color, core_radius=5, feather_radius=10):
-    """Paint solid cores and softly blend their edge into the original texture."""
-    if not points:
-        return 0
-    h, w = px.shape[:2]
-    mask = np.zeros((h, w), dtype=np.float32)
-    for yi, xi in points:
-        mask[max(0, yi - core_radius):yi + core_radius + 1,
-             max(0, xi - core_radius):xi + core_radius + 1] = 1.0
-
-    alpha = mask.copy()
-    blur_radius = max(1, feather_radius // 3)
-    for _ in range(3):
-        alpha = box_blur_axis(alpha, blur_radius, axis=0)
-        alpha = box_blur_axis(alpha, blur_radius, axis=1)
-    alpha = np.maximum(mask, np.clip(alpha, 0.0, 1.0))
-
-    affected = alpha > 1e-4
-    a = alpha[affected, None]
-    px[affected, :3] = a * color + (1.0 - a) * px[affected, :3]
-    return int(affected.sum())
-
-
-def sample_texture_color(objects, center, radius, fallback, dark_limit=0.5, exclude_reddish=False):
-    samples = []
-    for obj in objects:
-        img = image_for_object(obj)
-        if img is None or not obj.data.uv_layers.active:
-            continue
-        w, h = img.size
-        px = np.array(img.pixels[:], dtype=np.float32).reshape(h, w, 4)
-        uvd = obj.data.uv_layers.active.data
-        region = []
-        for p in obj.data.polygons:
-            if (Vector(p.center) - center).length >= radius:
-                continue
-            xi, yi = uv_to_pixel(uvd[p.loop_start].uv, w, h)
-            color = px[yi, xi, :3]
-            reddish = color[0] > 0.55 and (color[0] - color[1]) > 0.2
-            if color.max() >= dark_limit and not (exclude_reddish and reddish):
-                region.append(color)
-        if region:
-            samples.append((np.mean(region, axis=0), len(region)))
-    return weighted_average(samples, fallback)
-
-
 # ---------------------------------------------------------------- 分類・リネーム
 body = max(meshes, key=lambda o: len(o.data.vertices))
 body.name = "Body"
@@ -287,9 +198,15 @@ for obj, cc in ((eye_obj, eye_c), (mirror, mirror_c)):
 # マズルパーツ側にも含まれているので、両方に同じ処理をかける
 r = max(eye_sep["d"]) * 2.2
 targets = [body] + [p["o"] for p in muzzles]
-eye_skin_samples = []
 for obj in targets:
-    img = image_for_object(obj)
+    img = None
+    for m in obj.data.materials:
+        if not m or not m.node_tree:
+            continue
+        for n in m.node_tree.nodes:
+            if n.type == "TEX_IMAGE" and n.image:
+                img = n.image
+                break
     if img is None:
         continue
     W, Hpx = img.size
@@ -307,8 +224,6 @@ for obj in targets:
                 dark_px.append((yi, xi))
             else:
                 region.append(c)
-    if region:
-        eye_skin_samples.append((np.mean(region, axis=0), len(region)))
     if not dark_px:
         print(f"FUSED EYES {obj.name}: none")
         continue
@@ -323,7 +238,12 @@ for obj in targets:
 
 # ---------------------------------------------------------------- 耳の下の影を体色に塗る
 # 耳を持ち上げたときに、焼き付いた暗い影ではなく体色が見えるようにする
-body_img = image_for_object(body)
+body_img = None
+for m in body.data.materials:
+    for n in m.node_tree.nodes:
+        if n.type == "TEX_IMAGE" and n.image:
+            body_img = n.image
+            break
 W, Hpx = body_img.size
 px = np.array(body_img.pixels[:], dtype=np.float32).reshape(Hpx, W, 4)
 uvd = body.data.uv_layers.active.data
@@ -348,10 +268,11 @@ for p in body.data.polygons:
                 region.append(c)
             break
 skin_body = np.mean(region, axis=0) if region else np.array([0.92, 0.78, 0.54], dtype=np.float32)
-affected = feathered_paint(px, dark_px, skin_body, core_radius=5, feather_radius=10)
+for yi, xi in dark_px:
+    px[max(0, yi - 5):yi + 6, max(0, xi - 5):xi + 6, :3] = skin_body
 body_img.pixels.foreach_set(px.ravel())
 body_img.update()
-print("UNDER-EAR PAINTED:", len(dark_px), "polys, affected px =", affected)
+print("UNDER-EAR PAINTED:", len(dark_px), "polys")
 
 # ---------------------------------------------------------------- とじ目(∩)
 def make_mat(name, rgb, rough):
@@ -364,30 +285,13 @@ def make_mat(name, rgb, rough):
 
 
 mat_line = make_mat("ClosedEyeLine", (0.05, 0.04, 0.035), 0.25)
+mat_lid = make_mat("LidSkin", (0.92, 0.78, 0.54), 0.55)
+mat_plug = make_mat("MouthPlug", (0.93, 0.86, 0.72), 0.5)
 mat_earcap = make_mat("EarCap", (0.07, 0.06, 0.05), 0.3)
 
 eyeR_c = eye_c if eye_c.x >= 0 else mirror_c
 eyeL_c = mirror_c if eye_c.x >= 0 else eye_c
 eye_w = max(eye_sep["d"].x, eye_sep["d"].z)
-eye_skin = weighted_average(eye_skin_samples, (0.92, 0.78, 0.54))
-lid_samples = [
-    (sample_texture_color(targets, eyeL_c, eye_w * 2.4, eye_skin), 1),
-    (sample_texture_color(targets, eyeR_c, eye_w * 2.4, eye_skin), 1),
-]
-lid_skin = weighted_average(lid_samples, eye_skin)
-print("LID SKIN:", tuple(round(float(v), 3) for v in lid_skin))
-mat_lid = make_mat("LidSkin", tuple(float(v) for v in lid_skin), 0.55)
-
-tongue_center, tongue_dims, tongue_bmins, tongue_bmaxs = info(tongue["o"])
-mouth_center = Vector(((tongue_bmins.x + tongue_bmaxs.x) / 2,
-                       tongue_bmaxs.y - 0.01,
-                       (tongue_bmins.z + tongue_bmaxs.z) / 2 + 0.02))
-mouth_radius = max(tongue_dims) * 1.2
-plug_skin = sample_texture_color([p["o"] for p in muzzles] + [body], mouth_center,
-                                 mouth_radius, (0.93, 0.86, 0.72),
-                                 dark_limit=0.5, exclude_reddish=True)
-print("MOUTH PLUG:", tuple(round(float(v), 3) for v in plug_skin))
-mat_plug = make_mat("MouthPlug", tuple(float(v) for v in plug_skin), 0.5)
 
 pt_y = eyeL_c.y + 0.03
 D = -pt_y / (1 - eyeL_c.z / H)
