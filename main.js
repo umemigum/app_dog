@@ -126,11 +126,7 @@ scene.add(ground);
 // 雲
 const clouds = [];
 {
-  const cloudMat = new THREE.MeshLambertMaterial({
-    color: 0xffffff,
-    emissive: 0xf4f9ff,
-    emissiveIntensity: 0.75,
-  });
+  const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0xf4f9ff, emissiveIntensity: 0.75 });
   for (let i = 0; i < 6; i++) {
     const g = new THREE.Group();
     const n = 3 + Math.floor(Math.random() * 3);
@@ -150,36 +146,28 @@ const clouds = [];
   }
 }
 
-// ちょうちょ(追いかけっこ 2-7 で目標にもなる)
+// ちょうちょ
 const butterflies = [];
 {
   const wingGeo = new THREE.CircleGeometry(0.09, 8);
   for (let i = 0; i < 3; i++) {
     const g = new THREE.Group();
-    const mat = new THREE.MeshBasicMaterial({
-      color: [0xfff2a8, 0xffc4dd, 0xc8e8ff][i],
-      side: THREE.DoubleSide,
-    });
+    const mat = new THREE.MeshBasicMaterial({ color: [0xfff2a8, 0xffc4dd, 0xc8e8ff][i], side: THREE.DoubleSide });
     const wl = new THREE.Mesh(wingGeo, mat);
     const wr = new THREE.Mesh(wingGeo, mat);
-    wl.position.x = -0.07;
-    wr.position.x = 0.07;
+    wl.position.x = -0.07; wr.position.x = 0.07;
     g.add(wl, wr);
     g.userData = {
-      wl, wr,
-      phase: Math.random() * 10,
-      cx: (Math.random() - 0.5) * 8,
-      cz: (Math.random() - 0.5) * 8,
-      rx: 2 + Math.random() * 3,
-      rz: 2 + Math.random() * 3,
-      speed: 0.25 + Math.random() * 0.2,
+      wl, wr, phase: Math.random() * 10,
+      cx: (Math.random() - 0.5) * 8, cz: (Math.random() - 0.5) * 8,
+      rx: 2 + Math.random() * 3, rz: 2 + Math.random() * 3, speed: 0.25 + Math.random() * 0.2,
     };
     scene.add(g);
     butterflies.push(g);
   }
 }
 
-// 星(夜だけ表示 / 時間帯連動 3-3)
+// 星(夜だけ)
 const stars = (() => {
   const n = 220;
   const pos = new Float32Array(n * 3);
@@ -199,8 +187,23 @@ const stars = (() => {
   return p;
 })();
 
+// 足もとの影(犬ごとに使う共有アセット)
+const shadowTex = (() => {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 128;
+  const ctx = cv.getContext('2d');
+  const grad = ctx.createRadialGradient(64, 64, 8, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(40, 60, 20, 0.35)');
+  grad.addColorStop(1, 'rgba(40, 60, 20, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(cv);
+})();
+const shadowGeo = new THREE.PlaneGeometry(2.6, 2.6);
+const shadowBaseMat = new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false });
+
 // ===========================================================================
-// 時間帯連動(3-3)
+// 時間帯連動
 // ===========================================================================
 const DAY_STOPS = [
   { h: 0,    sky: 0x0b1030, sun: 0x24427a, sunI: 0.25, hemiI: 0.16, star: 1.0 },
@@ -214,18 +217,13 @@ const DAY_STOPS = [
 ];
 const _cA = new THREE.Color();
 const _cB = new THREE.Color();
-let forcedHour = null; // デバッグ用の時刻上書き
+let forcedHour = null;
 let nightFactor = 0;
 
 function applyDaylight(hour) {
-  let a = DAY_STOPS[0];
-  let b = DAY_STOPS[DAY_STOPS.length - 1];
+  let a = DAY_STOPS[0], b = DAY_STOPS[DAY_STOPS.length - 1];
   for (let i = 0; i < DAY_STOPS.length - 1; i++) {
-    if (hour >= DAY_STOPS[i].h && hour <= DAY_STOPS[i + 1].h) {
-      a = DAY_STOPS[i];
-      b = DAY_STOPS[i + 1];
-      break;
-    }
+    if (hour >= DAY_STOPS[i].h && hour <= DAY_STOPS[i + 1].h) { a = DAY_STOPS[i]; b = DAY_STOPS[i + 1]; break; }
   }
   const k = a.h === b.h ? 0 : (hour - a.h) / (b.h - a.h);
   const sky = _cA.setHex(a.sky).lerp(_cB.setHex(b.sky), k).clone();
@@ -237,7 +235,6 @@ function applyDaylight(hour) {
   nightFactor = a.star + (b.star - a.star) * k;
   stars.material.opacity = nightFactor * 0.9;
 }
-
 function currentHour() {
   if (forcedHour != null) return forcedHour;
   const d = new Date();
@@ -253,7 +250,7 @@ function timeBand() {
 applyDaylight(currentHour());
 
 // ===========================================================================
-// なつき度(きずな 3-2)
+// なつき度(群れ共通)
 // ===========================================================================
 const bond = {
   points: Number(localStorage.getItem('pd_bond') || 0),
@@ -275,24 +272,10 @@ function updateHearts() {
 }
 
 // ===========================================================================
-// なまえ(3-5)
-// ===========================================================================
-let dogName = localStorage.getItem('pd_name') || '';
-function setDogName(n) {
-  dogName = (n || '').trim().slice(0, 8);
-  localStorage.setItem('pd_name', dogName);
-}
-// セリフ内の ◯◯ を名前(なければ「きみ」)に置換
-function withName(s) {
-  if (dogName) return s.replace(/◯◯/g, dogName);
-  return s.replace(/◯◯は/g, 'ぼくは').replace(/◯◯/g, 'きみ');
-}
-
-// ===========================================================================
 // ピラミッド犬
 // ===========================================================================
 const _q = new THREE.Quaternion();
-const _earAxis = new THREE.Vector3(0, 0, 1); // 耳は Blender流ローカルZまわりで開閉
+const _earAxis = new THREE.Vector3(0, 0, 1);
 
 class PyramidDog {
   constructor() {
@@ -308,14 +291,17 @@ class PyramidDog {
     this.hitSphere.position.y = 0.75;
     this.group.add(this.hitSphere);
 
-    // 口もと(くわえ位置)— 食べ物・ボールをここに付ける
     this.mouth = new THREE.Object3D();
     this.mouth.position.set(0, 0.55, 0.72);
     this.group.add(this.mouth);
 
+    this.shadow = new THREE.Mesh(shadowGeo, shadowBaseMat.clone());
+    this.shadow.rotation.x = -Math.PI / 2;
+    this.shadow.position.y = 0.02;
+
     this.state = 'idle';
     this.stateTime = 2;
-    this.heading = 0;
+    this.heading = Math.random() * Math.PI * 2;
     this.target = new THREE.Vector2();
     this.hopPhase = 0;
     this.walkElapsed = 0;
@@ -324,20 +310,21 @@ class PyramidDog {
     this.earLift = 0;
     this.reactT = 0;
     this.reactBase = 0;
-    this.awakeTime = 0;
+    this.awakeTime = Math.random() * 8;
     this.zzzTimer = 0;
     this.petting = false;
     this.tongueOut = 1;
-    this.tongueTimer = 4;
+    this.tongueTimer = 4 + Math.random() * 3;
     this.onArrive = null;
     this.attendAngle = 0;
     this.tiltDir = 1;
     this.eatT = 0;
     this.nextBite = 0;
+    this.eatDuration = 2.3;
     this.eating = null;
-    this.happyTimer = 0;   // うれしさ(おしり振り 2-3)
-    this.zoomLeft = 0;     // ズーミー残り回数
-    this.rollT = 0;
+    this.happyTimer = 0;
+    this.zoomLeft = 0;
+    this.spawnT = 1; // 1=通常, <1=ポップイン中
   }
 
   attachModel(root) {
@@ -365,12 +352,10 @@ class PyramidDog {
   setState(s, dur) { this.state = s; this.stateTime = dur; }
 
   chooseNext() {
-    // ときどきズーミー / ちょうちょ追い / ごろん を混ぜる
     const roll = Math.random();
     if (this.awakeTime > 22 && roll < 0.22) { this.startSleep(); return; }
-    if (roll < 0.05) { this.startZoomies(); return; }
-    if (roll < 0.13) { this.chaseButterfly(); return; }
-    if (roll < 0.19) { this.startRoll(); return; }
+    if (roll < 0.06) { this.startZoomies(); return; }
+    if (roll < 0.15) { this.chaseButterfly(); return; }
     if (roll < 0.62) { this.startWalk(); return; }
     this.setState('idle', 1.5 + Math.random() * 3);
   }
@@ -378,57 +363,46 @@ class PyramidDog {
   startWalk() {
     const a = Math.random() * Math.PI * 2;
     const r = 1.5 + Math.random() * 5;
-    this.target.set(Math.cos(a) * r, Math.sin(a) * r);
+    this.target.set(this.group.position.x + Math.cos(a) * r, this.group.position.z + Math.sin(a) * r);
+    this.clampTarget();
     this.walkElapsed = 0;
     this.setState('walk', 30);
+  }
+
+  clampTarget() {
+    this.target.x = THREE.MathUtils.clamp(this.target.x, -14, 14);
+    this.target.y = THREE.MathUtils.clamp(this.target.y, -14, 14);
   }
 
   goTo(x, z, onArrive) {
     if (this.state === 'eat') return;
     if (this.state === 'sleep') this.wake();
     this.target.set(x, z);
+    this.clampTarget();
     this.onArrive = onArrive || null;
     this.walkElapsed = 0;
     this.setState('walk', 30);
   }
 
-  startZoomies() {
-    this.zoomLeft = 3;
-    this.pickZoomTarget();
-    this.happyTimer = 4;
-    speak('zoomies', 1.6);
-  }
+  startZoomies() { this.zoomLeft = 3; this.happyTimer = 4; this.pickZoomTarget(); speak(this, 'zoomies', 1.6); }
   pickZoomTarget() {
     const a = Math.random() * Math.PI * 2;
     const r = 3 + Math.random() * 5;
     this.target.set(Math.cos(a) * r, Math.sin(a) * r);
-    this.walkElapsed = 0.5; // 助走なしで即トップスピード
+    this.walkElapsed = 0.5;
     this.setState('zoomies', 8);
   }
 
   chaseButterfly() {
     const b = randomOf(butterflies);
-    this.chaseTarget = b;
     this.goTo(b.position.x, b.position.z, () => {
       this.attend(Math.atan2(b.position.x - this.group.position.x, b.position.z - this.group.position.z));
-      speak('chase', 2);
+      speak(this, 'chase', 2);
     });
-    speak('chaseStart', 1.6);
+    speak(this, 'chaseStart', 1.6);
   }
 
-  startRoll() {
-    this.rollT = 0;
-    this.happyTimer = 2.5;
-    this.setState('roll', 1.4);
-    speak('roll', 1.6);
-  }
-
-  startSleep() {
-    this.setState('sleep', 10 + Math.random() * 14);
-    this.zzzTimer = 1;
-    speak('sleep', 2.5);
-  }
-
+  startSleep() { this.setState('sleep', 10 + Math.random() * 14); this.zzzTimer = 1; speak(this, 'sleep', 2.5); }
   wake() { this.awakeTime = 0; this.setState('idle', 1 + Math.random() * 2); }
 
   attend(angle) {
@@ -442,7 +416,7 @@ class PyramidDog {
 
   react() {
     if (this.state === 'eat') return;
-    if (this.state === 'sleep') { this.wake(); speak('wake', 2); return; }
+    if (this.state === 'sleep') { this.wake(); speak(this, 'wake', 2); return; }
     this.onArrive = null;
     this.state = 'react';
     this.reactT = 0;
@@ -450,14 +424,21 @@ class PyramidDog {
     this.happyTimer = 2.5;
     spawnFxAt(this.group.position, 'heart', '💛', 3);
     bond.add(1);
-    if (Math.random() < 0.4) speak('tap', 2.5);
+    if (Math.random() < 0.4) speak(this, 'tap', 2.5);
   }
 
   update(dt, t) {
+    // ポップイン(ふやした時)
+    if (this.spawnT < 1) {
+      this.spawnT = Math.min(1, this.spawnT + dt / 0.45);
+      this.group.scale.setScalar(Math.max(0.001, easeOutBack(this.spawnT)));
+    } else if (this.group.scale.x !== 1) {
+      this.group.scale.setScalar(1);
+    }
+
     if (this.state !== 'sleep') this.awakeTime += dt;
     if (this.happyTimer > 0) this.happyTimer -= dt;
 
-    // まばたき
     if (this.blinkT >= 0) {
       this.blinkT += dt;
       if (this.blinkT > 0.13) this.blinkT = -1;
@@ -466,12 +447,8 @@ class PyramidDog {
       if (this.blinkTimer <= 0) { this.blinkT = 0; this.blinkTimer = 1.5 + Math.random() * 3.5; }
     }
 
-    // 舌
     this.tongueTimer -= dt;
-    if (this.tongueTimer <= 0) {
-      this.tongueOut = this.tongueOut > 0.5 ? 0 : 1;
-      this.tongueTimer = 2.5 + Math.random() * 5;
-    }
+    if (this.tongueTimer <= 0) { this.tongueOut = this.tongueOut > 0.5 ? 0 : 1; this.tongueTimer = 2.5 + Math.random() * 5; }
 
     let hopY = 0, squash = 1, rock = 0, pitch = 0, earTarget = 0, eyesClosed = false, yaw = 0;
 
@@ -482,7 +459,6 @@ class PyramidDog {
         if (this.stateTime <= 0) this.chooseNext();
         break;
       }
-
       case 'walk':
       case 'zoomies': {
         const zoom = this.state === 'zoomies';
@@ -493,11 +469,7 @@ class PyramidDog {
         const dz = this.target.y - pos.z;
         const dist = Math.hypot(dx, dz);
         if (dist < 0.25 || this.stateTime <= 0) {
-          if (zoom && this.zoomLeft > 1 && this.stateTime > 0) {
-            this.zoomLeft--;
-            this.pickZoomTarget();
-            break;
-          }
+          if (zoom && this.zoomLeft > 1 && this.stateTime > 0) { this.zoomLeft--; this.pickZoomTarget(); break; }
           this.zoomLeft = 0;
           this.setState('idle', 1.2 + Math.random() * 2.5);
           if (this.onArrive) { const cb = this.onArrive; this.onArrive = null; cb(); }
@@ -505,7 +477,6 @@ class PyramidDog {
         }
         const want = Math.atan2(dx, dz);
         this.heading += shortestAngle(this.heading, want) * Math.min(1, dt * (zoom ? 6 : 4));
-        // 2-1 出発でじわっと加速、到着手前で減速。速度でホップも変わる
         const accel = Math.min(1, this.walkElapsed / 0.5);
         const decel = Math.min(1, dist / 0.9);
         const base = zoom ? 2.6 : 1.15;
@@ -514,14 +485,12 @@ class PyramidDog {
         pos.z += Math.cos(this.heading) * sp * dt;
         this.hopPhase += dt * (4 + sp * 4);
         const s = Math.abs(Math.sin(this.hopPhase));
-        const amp = zoom ? 0.24 : 0.16;
-        hopY = s * amp * Math.min(1, sp / base + 0.2);
+        hopY = s * (zoom ? 0.24 : 0.16) * Math.min(1, sp / base + 0.2);
         squash = 0.92 + s * 0.1;
         rock = Math.sin(this.hopPhase) * (zoom ? 0.1 : 0.06);
         earTarget = (zoom ? 0.6 : 0.25) + s * 0.2;
         break;
       }
-
       case 'sleep': {
         this.stateTime -= dt;
         eyesClosed = true;
@@ -531,9 +500,7 @@ class PyramidDog {
         if (this.stateTime <= 0) this.wake();
         break;
       }
-
       case 'attend': {
-        // こっちむいて + 首かしげ(2-2)
         this.stateTime -= dt;
         this.heading += shortestAngle(this.heading, this.attendAngle) * Math.min(1, dt * 6);
         const p = 1 - this.stateTime / 1.6;
@@ -543,30 +510,15 @@ class PyramidDog {
         if (this.stateTime <= 0) this.setState('idle', 2 + Math.random() * 2);
         break;
       }
-
-      case 'roll': {
-        // ごろん(全身バレルロール 2-5 の簡易版)
-        this.rollT += dt / 1.4;
-        const p = Math.min(this.rollT, 1);
-        rock = easeInOut(p) * Math.PI * 2;
-        hopY = Math.sin(p * Math.PI) * 0.12;
-        squash = 1 + Math.sin(p * Math.PI) * 0.05;
-        eyesClosed = p > 0.15 && p < 0.9;
-        earTarget = 0.5;
-        if (this.rollT >= 1) this.setState('idle', 1 + Math.random() * 2);
-        break;
-      }
-
       case 'eat': {
         this.eatT += dt;
         pitch = Math.abs(Math.sin(this.eatT * 6)) * 0.15;
         squash = 1 + Math.sin(this.eatT * 12) * 0.02;
         earTarget = 0.3;
         if (this.eating && this.eatT >= this.nextBite) { this.nextBite += 0.55; biteTreat(); }
-        if (this.eatT > this.eatDuration) finishEating();
+        if (this.eatT > this.eatDuration) finishEating(this);
         break;
       }
-
       case 'react': {
         this.reactT += dt / 0.85;
         const p = Math.min(this.reactT, 1);
@@ -580,14 +532,11 @@ class PyramidDog {
       }
     }
 
-    // なでなで
     if (this.petting && this.state !== 'react') {
       eyesClosed = true;
       squash *= 1 + Math.sin(t * 9) * 0.025;
       earTarget = Math.max(earTarget, 0.35);
     }
-
-    // 2-3 うれしいとき全身をぷりぷり
     if (this.happyTimer > 0 || this.petting) yaw = Math.sin(t * 17) * 0.05 * (this.petting ? 0.7 : 1);
 
     this.group.position.y = hopY;
@@ -597,6 +546,15 @@ class PyramidDog {
     this.body.rotation.x = pitch;
 
     this.earLift += (earTarget - this.earLift) * Math.min(1, dt * 6);
+
+    // 影
+    this.shadow.position.x = this.group.position.x;
+    this.shadow.position.z = this.group.position.z;
+    const airFade = Math.max(0.3, 1 - hopY * 0.8);
+    const sc = airFade * (this.spawnT < 1 ? this.spawnT : 1);
+    this.shadow.scale.setScalar(sc);
+    this.shadow.material.opacity = airFade;
+
     if (!this.loaded) return;
 
     const flapping = this.state === 'walk' || this.state === 'zoomies' || this.state === 'react';
@@ -607,8 +565,7 @@ class PyramidDog {
     _q.setFromAxisAngle(_earAxis, lift);
     this.earR.quaternion.copy(this.earBaseR).multiply(_q);
 
-    const blink = this.blinkT >= 0;
-    const closed = eyesClosed || blink;
+    const closed = eyesClosed || this.blinkT >= 0;
     this.eyeL.visible = !closed;
     this.eyeR.visible = !closed;
     this.eyeClosedL.visible = closed;
@@ -627,38 +584,89 @@ function shortestAngle(from, to) {
   return d;
 }
 function easeInOut(x) { return x * x * (3 - 2 * x); }
+function easeOutBack(x) { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); }
 function randomOf(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
-const dog = new PyramidDog();
-scene.add(dog.group);
-window.piramidog = dog;
-window.__debugCam = { camera, controls: () => controls };
+// ===========================================================================
+// 群れ(複数のピラミッド犬)
+// ===========================================================================
+const MAX_DOGS = 5;
+const dogs = [];
+let modelProto = null;
 
-const MODEL_VERSION = 'tripo-self-1';
-new GLTFLoader().load(`assets/piramidog.glb?v=${MODEL_VERSION}`, (gltf) => {
-  dog.attachModel(gltf.scene);
+function cloneModel() { return modelProto ? modelProto.clone(true) : null; }
+
+function spawnDog(opts = {}) {
+  if (dogs.length >= MAX_DOGS) return null;
+  const d = new PyramidDog();
+  if (modelProto) d.attachModel(cloneModel());
+  // 位置: 最初の1匹は中央、以降は既存の犬の近くに
+  if (dogs.length === 0) {
+    d.group.position.set(0, 0, 0);
+  } else {
+    const near = randomOf(dogs);
+    const a = Math.random() * Math.PI * 2;
+    const r = 1.4 + Math.random() * 1.6;
+    d.group.position.set(
+      THREE.MathUtils.clamp(near.group.position.x + Math.cos(a) * r, -12, 12),
+      0,
+      THREE.MathUtils.clamp(near.group.position.z + Math.sin(a) * r, -12, 12)
+    );
+  }
+  if (opts.pop) {
+    d.spawnT = 0;
+    d.group.scale.setScalar(0.001);
+    spawnFxAt(d.group.position, 'heart', '✨', 4);
+    speak(d, 'hello', 2.2);
+    playChirp();
+  }
+  scene.add(d.group);
+  scene.add(d.shadow);
+  dogs.push(d);
+  localStorage.setItem('pd_count', String(dogs.length));
+  updateDogCountUI();
+  return d;
+}
+
+function removeDog() {
+  if (dogs.length <= 1) return;
+  const d = dogs.pop();
+  scene.remove(d.group);
+  scene.remove(d.shadow);
+  if (d === fetcher) { if (ball) { scene.remove(ball); ball = null; } fetcher = null; ballState = 'none'; }
+  if (d === treatEater) { if (treat) { scene.remove(treat); treat = null; } treatEater = null; }
+  localStorage.setItem('pd_count', String(dogs.length));
+  updateDogCountUI();
+}
+
+function nearestDogTo(x, z, filter) {
+  let best = null, bd = 1e9;
+  for (const d of dogs) {
+    if (filter && !filter(d)) continue;
+    const dd = (d.group.position.x - x) ** 2 + (d.group.position.z - z) ** 2;
+    if (dd < bd) { bd = dd; best = d; }
+  }
+  return best;
+}
+function focusedDog() { return nearestDogTo(camera.position.x, camera.position.z) || dogs[0]; }
+function angleTo(d) { return Math.atan2(camera.position.x - d.group.position.x, camera.position.z - d.group.position.z); }
+
+function updateDogCountUI() {
+  const el = document.getElementById('dog-count');
+  if (el) el.textContent = `${dogs.length}/${MAX_DOGS}`;
+}
+
+// モデル読み込み → 保存された匹数ぶん配置
+new GLTFLoader().load(`assets/piramidog.glb?v=tripo-self-1`, (gltf) => {
+  modelProto = gltf.scene;
+  const saved = THREE.MathUtils.clamp(Number(localStorage.getItem('pd_count') || 1), 1, MAX_DOGS);
+  for (let i = 0; i < saved; i++) spawnDog();
+  window.piramidog = dogs[0];
+  window.__dogs = dogs;
+  updateDogCountUI();
 });
 
-// 足もとの影
-const blobShadow = (() => {
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = 128;
-  const ctx = cv.getContext('2d');
-  const grad = ctx.createRadialGradient(64, 64, 8, 64, 64, 64);
-  grad.addColorStop(0, 'rgba(40, 60, 20, 0.35)');
-  grad.addColorStop(1, 'rgba(40, 60, 20, 0)');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 128, 128);
-  const tex = new THREE.CanvasTexture(cv);
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(2.6, 2.6),
-    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false })
-  );
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.position.y = 0.02;
-  scene.add(mesh);
-  return mesh;
-})();
+window.__debugCam = { camera, controls: () => controls };
 
 // ===========================================================================
 // カメラ方向ヘルパー
@@ -668,64 +676,55 @@ function cameraGroundDir() {
   if (v.lengthSq() < 0.01) v.set(0, 0, 1);
   return v.normalize();
 }
-function angleToCamera() {
-  return Math.atan2(camera.position.x - dog.group.position.x, camera.position.z - dog.group.position.z);
-}
 
 // ===========================================================================
-// アクション: こっちむいて / おいで
+// アクション: こっちむいて / おいで(群れ全員)
 // ===========================================================================
 function lookAtMe() {
-  if (dog.state === 'eat') return;
-  dog.attend(angleToCamera());
+  if (!dogs.length) return;
+  for (const d of dogs) if (d.state !== 'eat') d.attend(angleTo(d));
   playBark();
-  speak('lookAt', 2);
+  speak(focusedDog(), 'lookAt', 2);
 }
 function comeHere() {
-  if (dog.state === 'eat') return;
+  if (!dogs.length) return;
   const dir = cameraGroundDir();
-  const dist = Math.min(4.2, Math.max(2.5, camera.position.length() * 0.4));
-  speak('coming', 2);
-  dog.goTo(dir.x * dist, dir.z * dist, () => {
-    dog.attend(angleToCamera());
-    playChirp();
-    spawnFxAt(dog.group.position, 'heart', '💛', 2);
-    bond.add(2);
-    speak('arrived', 2.5);
+  const px = -dir.z, pz = dir.x; // 直交方向(横に広がる)
+  const base = Math.min(4.2, Math.max(2.5, camera.position.length() * 0.4));
+  dogs.forEach((d, i) => {
+    if (d.state === 'eat') return;
+    const off = (i - (dogs.length - 1) / 2) * 1.15;
+    d.goTo(dir.x * base + px * off, dir.z * base + pz * off, () => d.attend(angleTo(d)));
   });
+  speak(focusedDog(), 'coming', 2);
+  playChirp();
+  bond.add(2);
 }
 
 // ===========================================================================
-// おやつ(3-4 アイテム一般化: りんご / ほね / クッキー)
+// おやつ(りんご / ほね / クッキー)
 // ===========================================================================
-const _tmpV = new THREE.Vector3();
 const TREATS = {
   apple: {
-    emoji: '🍎', bites: 3,
-    lines: ['おいしい〜!', 'りんご だいすき!', 'あまずっぱい!'],
+    emoji: '🍎', bites: 3, lines: ['おいしい〜!', 'りんご だいすき!', 'あまずっぱい!'],
     make() {
       const g = new THREE.Group();
-      const fruit = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 16),
-        new THREE.MeshStandardMaterial({ color: 0xd93b36, roughness: 0.35 }));
+      const fruit = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 16), new THREE.MeshStandardMaterial({ color: 0xd93b36, roughness: 0.35 }));
       fruit.scale.y = 0.92; fruit.position.y = 0.15; fruit.castShadow = true;
-      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, 0.09, 6),
-        new THREE.MeshStandardMaterial({ color: 0x6d4a2a, roughness: 0.9 }));
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.018, 0.09, 6), new THREE.MeshStandardMaterial({ color: 0x6d4a2a, roughness: 0.9 }));
       stem.position.y = 0.32; stem.rotation.z = 0.15;
-      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8),
-        new THREE.MeshStandardMaterial({ color: 0x5fae4a, roughness: 0.7 }));
+      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), new THREE.MeshStandardMaterial({ color: 0x5fae4a, roughness: 0.7 }));
       leaf.scale.set(1, 0.35, 0.55); leaf.position.set(0.06, 0.34, 0);
       g.add(fruit, stem, leaf); return g;
     },
   },
   bone: {
-    emoji: '🦴', bites: 4,
-    lines: ['ほね さいこう!', 'かみごたえ ばつぐん!', 'ごきげん!'],
+    emoji: '🦴', bites: 4, lines: ['ほね さいこう!', 'かみごたえ ばつぐん!', 'ごきげん!'],
     make() {
       const g = new THREE.Group();
       const mat = new THREE.MeshStandardMaterial({ color: 0xf3ecd6, roughness: 0.5 });
       const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.32, 10), mat);
-      shaft.rotation.z = Math.PI / 2; shaft.position.y = 0.13; shaft.castShadow = true;
-      g.add(shaft);
+      shaft.rotation.z = Math.PI / 2; shaft.position.y = 0.13; shaft.castShadow = true; g.add(shaft);
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
         const k = new THREE.Mesh(new THREE.SphereGeometry(0.062, 10, 8), mat);
         k.position.set(sx * 0.17, 0.13, sz * 0.05); g.add(k);
@@ -734,12 +733,10 @@ const TREATS = {
     },
   },
   cookie: {
-    emoji: '🍪', bites: 3,
-    lines: ['あまくて しあわせ!', 'クッキー もっと!', 'さくさく!'],
+    emoji: '🍪', bites: 3, lines: ['あまくて しあわせ!', 'クッキー もっと!', 'さくさく!'],
     make() {
       const g = new THREE.Group();
-      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.06, 20),
-        new THREE.MeshStandardMaterial({ color: 0xcaa15e, roughness: 0.7 }));
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.06, 20), new THREE.MeshStandardMaterial({ color: 0xcaa15e, roughness: 0.7 }));
       c.position.y = 0.12; c.castShadow = true; g.add(c);
       const chip = new THREE.MeshStandardMaterial({ color: 0x4a2c19, roughness: 0.6 });
       for (let i = 0; i < 5; i++) {
@@ -753,17 +750,19 @@ const TREATS = {
 };
 const TREAT_KINDS = Object.keys(TREATS);
 let treatIndex = 0;
-
-let treat = null;       // 地面のおやつ(食べ中含む)
+let treat = null;
 let treatDef = null;
+let treatEater = null;
 
 function giveTreat(kind) {
-  if (treat || dog.state === 'eat') return;
-  if (dog.state === 'sleep') dog.wake();
+  if (!dogs.length || treat) return;
   const def = TREATS[kind] || TREATS.apple;
   treatDef = def;
+  const eater = focusedDog();
+  if (!eater || eater.state === 'eat') return;
+  if (eater.state === 'sleep') eater.wake();
   const dir = cameraGroundDir();
-  const pos = dog.group.position;
+  const pos = eater.group.position;
   const ax = THREE.MathUtils.clamp(pos.x + dir.x * 1.7, -7, 7);
   const az = THREE.MathUtils.clamp(pos.z + dir.z * 1.7, -7, 7);
   treat = def.make();
@@ -771,16 +770,17 @@ function giveTreat(kind) {
   treat.userData.vy = 0;
   scene.add(treat);
   playTone({ freq: 520, freqEnd: 780, dur: 0.15, type: 'sine', gain: 0.12 });
-  speak('treatDrop', 2);
+  speak(eater, 'treatDrop', 2);
   const dx = ax - pos.x, dz = az - pos.z, d = Math.hypot(dx, dz) || 1;
-  dog.goTo(ax - (dx / d) * 0.85, az - (dz / d) * 0.85, () => {
+  eater.goTo(ax - (dx / d) * 0.85, az - (dz / d) * 0.85, () => {
     if (!treat) return;
-    dog.heading = Math.atan2(treat.position.x - dog.group.position.x, treat.position.z - dog.group.position.z);
-    dog.eating = treat;
-    dog.eatT = 0;
-    dog.nextBite = 0.5;
-    dog.eatDuration = 0.5 + def.bites * 0.55 + 0.2;
-    dog.setState('eat', 12);
+    eater.heading = Math.atan2(treat.position.x - eater.group.position.x, treat.position.z - eater.group.position.z);
+    eater.eating = treat;
+    eater.eatT = 0;
+    eater.nextBite = 0.5;
+    eater.eatDuration = 0.5 + def.bites * 0.55 + 0.2;
+    treatEater = eater;
+    eater.setState('eat', 12);
   });
 }
 
@@ -788,33 +788,33 @@ function biteTreat() {
   if (!treat) return;
   playCrunch();
   const s = treat.scale.x * 0.66;
-  if (s < 0.22) { scene.remove(treat); treat = null; dog.eating = null; }
+  if (s < 0.22) { scene.remove(treat); treat = null; if (treatEater) treatEater.eating = null; }
   else treat.scale.setScalar(s);
 }
 
-function finishEating() {
+function finishEating(d) {
   if (treat) { scene.remove(treat); treat = null; }
-  dog.eating = null;
-  spawnFxAt(dog.group.position, 'heart', '💛', 3);
-  showBubble(withName(randomOf((treatDef || TREATS.apple).lines)), 2.5);
+  d.eating = null;
+  spawnFxAt(d.group.position, 'heart', '💛', 3);
+  showBubble(d, randomOf((treatDef || TREATS.apple).lines), 2.5);
   playChirp();
   bond.add(3);
-  dog.setState('idle', 2 + Math.random() * 2);
+  treatEater = null;
+  d.setState('idle', 2 + Math.random() * 2);
 }
 
 // ===========================================================================
-// ボール遊び・とってこい(3-1)
+// ボール遊び・とってこい(一番近い犬が拾う)
 // ===========================================================================
 let ball = null;
 let ballState = 'none'; // none / flying / fetch / carry
+let fetcher = null;
 
 function makeBall() {
   const g = new THREE.Group();
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.17, 20, 16),
-    new THREE.MeshStandardMaterial({ color: 0xff5a3c, roughness: 0.4 }));
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.17, 20, 16), new THREE.MeshStandardMaterial({ color: 0xff5a3c, roughness: 0.4 }));
   m.castShadow = true;
-  const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.03, 8, 24),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }));
+  const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.03, 8, 24), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }));
   stripe.rotation.x = Math.PI / 2;
   g.add(m, stripe);
   g.position.y = 0.17;
@@ -822,55 +822,54 @@ function makeBall() {
 }
 
 function throwBall() {
-  if (ballState === 'carry' || ballState === 'flying') return;
-  if (dog.state === 'eat') return;
-  if (dog.state === 'sleep') dog.wake();
+  if (!dogs.length || ballState === 'carry' || ballState === 'flying') return;
   if (ball) { scene.remove(ball); ball = null; }
+  const thrower = focusedDog();
   const dir = cameraGroundDir();
-  const start = dog.group.position.clone();
+  const start = thrower.group.position.clone();
   ball = makeBall();
   ball.position.set(start.x, 1.0, start.z);
-  // カメラと反対方向(奥)へ放る
   const away = dir.clone().multiplyScalar(-1);
   const power = 5.5 + Math.random() * 2;
-  ball.userData = { vx: away.x * power, vy: 4.2, vz: away.z * power, spin: 0 };
+  ball.userData = { vx: away.x * power, vy: 4.2, vz: away.z * power };
   scene.add(ball);
   ballState = 'flying';
   playTone({ freq: 300, freqEnd: 200, dur: 0.12, type: 'sine', gain: 0.1 });
-  speak('ballThrow', 1.8);
+  speak(thrower, 'ballThrow', 1.8);
 }
 
 function pickUpBall() {
+  if (!ball || !fetcher) { ballState = 'none'; return; }
   ballState = 'carry';
   scene.remove(ball);
-  dog.mouth.add(ball);
+  fetcher.mouth.add(ball);
   ball.position.set(0, 0, 0);
   ball.userData = {};
   playChirp();
   const dir = cameraGroundDir();
   const dist = Math.min(4.2, Math.max(2.5, camera.position.length() * 0.4));
-  dog.goTo(dir.x * dist, dir.z * dist, dropBall);
-  speak('ballGot', 1.8);
+  fetcher.goTo(dir.x * dist, dir.z * dist, dropBall);
+  speak(fetcher, 'ballGot', 1.8);
 }
 
 function dropBall() {
-  if (!ball) return;
-  scene.attach(ball); // ワールド変換を保ったまま親を外す
+  if (!ball || !fetcher) { ballState = 'none'; return; }
+  scene.attach(ball);
   ball.position.y = 0.17;
   ball.userData = {};
   ballState = 'none';
-  dog.attend(angleToCamera());
-  spawnFxAt(dog.group.position, 'heart', '💛', 2);
+  fetcher.attend(angleTo(fetcher));
+  spawnFxAt(fetcher.group.position, 'heart', '💛', 2);
   bond.add(3);
-  speak('ballReturn', 2.2);
+  speak(fetcher, 'ballReturn', 2.2);
+  fetcher = null;
 }
 
 // ===========================================================================
-// おしゃべり(文脈タグ付き 3-9)
+// おしゃべり(文脈タグ付き)
 // ===========================================================================
 const LINES = {
-  idle:   ['きょうも いいてんき だね!', 'おさんぽ たのしいなぁ', 'くさの におい、だいすき',
-           'ずっと いっしょに いようね', '◯◯と いると あんしんする〜', 'わん!'],
+  idle:   ['きょうも いいてんき だね!', 'おさんぽ たのしいなぁ', 'くさの におい、だいすき', 'ずっと いっしょに いようね', 'きみと いると あんしんする〜', 'わん!'],
   morning:['おはよう! きょうも あそぼ?', 'あさの くうき きもちいい〜', 'ん〜、よく ねむれた!'],
   day:    ['おひさま ぽかぽか!', 'ちょうちょ みつけた!', 'ピラミッドは じょうぶで じまんなんだ'],
   evening:['ゆうやけ きれいだね', 'そろそろ おなか すいたかも', 'きょうも たのしかったね'],
@@ -880,8 +879,7 @@ const LINES = {
   petFace:['ふへへ、はなの あたま くすぐったい!', 'ぺろっ'],
   petBody:['あははっ、くすぐったいって〜!', 'そこは じゃれちゃう!'],
   lookAt: ['なあに?', 'よんだ?', 'わん!'],
-  coming: ['いま いくー!', 'とことこ…'],
-  arrived:['きたよ!', 'なでてくれる?', '◯◯の となり すき'],
+  coming: ['いま いくー!', 'とことこ…', 'みんなで いくよ!'],
   sleep:  ['ふぁ〜… ちょっと おひるね…', ' zzz…'],
   wake:   ['はっ! おきたよ!', 'ん〜、おはよ…'],
   treatDrop:['わっ、たべもの だ!', 'いいにおい!'],
@@ -891,28 +889,30 @@ const LINES = {
   chaseStart:['ちょうちょ まてまて〜!', 'つかまえるぞ〜'],
   chase:   ['あれ、いっちゃった…', 'にげ足 はやいなぁ'],
   zoomies: ['うおおお たのしー!', 'びゅーん!'],
-  roll:    ['ごろーん', 'きもちいいっ'],
-  levelUp: ['なんだか ◯◯と なかよしに なれた きがする!', 'えへへ、だいすきが ふえた!'],
+  hello:   ['こんにちは!', 'はじめまして!', 'なかまに いれて!'],
+  levelUp: ['きみと なかよしに なれた きがする!', 'えへへ、だいすきが ふえた!'],
 };
 
 const bubbleEl = document.getElementById('bubble');
 let bubbleTimer = 0;
-let speechTimer = 8 + Math.random() * 8;
+let bubbleDog = null;
 
-function showBubble(text, dur = 3.5) {
+function showBubble(d, text, dur = 3.5) {
   bubbleEl.textContent = text;
   bubbleEl.classList.add('show');
   bubbleTimer = dur;
+  bubbleDog = d;
 }
-function speak(tag, dur = 3) {
-  const pool = LINES[tag] || LINES.idle;
-  showBubble(withName(randomOf(pool)), dur);
+function speak(d, tag, dur = 3) {
+  showBubble(d, randomOf(LINES[tag] || LINES.idle), dur);
 }
-function speakIdle() {
-  // 時間帯の専用セリフを混ぜる
+function packIdleChatter() {
+  const talkers = dogs.filter((d) => d.state !== 'sleep' && d.state !== 'react' && d.state !== 'eat');
+  if (!talkers.length) return;
+  const d = randomOf(talkers);
   const band = timeBand();
   const pool = LINES.idle.concat(LINES[band] || []);
-  showBubble(withName(randomOf(pool)), 3.5);
+  showBubble(d, randomOf(pool), 3.5);
 }
 
 // ===========================================================================
@@ -951,6 +951,7 @@ function initAudio() {
   scheduleMelody();
   schedulePad();
 }
+function audioActive() { return audio.ctx && audio.enabled && !document.hidden; }
 function playTone({ freq, freqEnd, dur = 0.5, type = 'sine', gain = 0.1, attack = 0.01 }) {
   if (!audio.ctx) return;
   const t0 = audio.ctx.currentTime;
@@ -969,8 +970,7 @@ function playTone({ freq, freqEnd, dur = 0.5, type = 'sine', gain = 0.1, attack 
 const SCALE = [523.25, 587.33, 659.25, 783.99, 880.0, 1046.5, 1318.5];
 function scheduleMelody() {
   if (!audio.ctx) return;
-  // 夜はメロディを控えめに(時間帯連動)
-  if (audio.enabled && Math.random() > nightFactor * 0.7) {
+  if (audioActive() && Math.random() > nightFactor * 0.7) {
     playTone({ freq: randomOf(SCALE), dur: 1.6, type: 'sine', gain: 0.055, attack: 0.005 });
   }
   setTimeout(scheduleMelody, 700 + Math.random() * 1300 + nightFactor * 900);
@@ -979,10 +979,8 @@ const CHORDS = [[130.81, 164.81, 196.0], [110.0, 130.81, 164.81], [87.31, 110.0,
 let chordIndex = 0;
 function schedulePad() {
   if (!audio.ctx) return;
-  if (audio.enabled) {
-    for (const f of CHORDS[chordIndex % CHORDS.length]) {
-      playTone({ freq: f, dur: 7, type: 'triangle', gain: 0.022, attack: 2.5 });
-    }
+  if (audioActive()) {
+    for (const f of CHORDS[chordIndex % CHORDS.length]) playTone({ freq: f, dur: 7, type: 'triangle', gain: 0.022, attack: 2.5 });
     chordIndex++;
   }
   setTimeout(schedulePad, 8000);
@@ -1014,30 +1012,42 @@ soundBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   audio.enabled = !audio.enabled;
   soundBtn.textContent = audio.enabled ? '🔊' : '🔇';
-  if (audio.master) audio.master.gain.linearRampToValueAtTime(audio.enabled ? 0.5 : 0, audio.ctx.currentTime + 0.3);
+  if (audio.ctx) {
+    if (audio.enabled && audio.ctx.state === 'suspended') audio.ctx.resume();
+    audio.master.gain.linearRampToValueAtTime(audio.enabled ? 0.5 : 0, audio.ctx.currentTime + 0.3);
+  }
+});
+
+// タブが隠れたら音を止める(PC/スマホ共通・バックグラウンド対策)
+document.addEventListener('visibilitychange', () => {
+  if (!audio.ctx) return;
+  if (document.hidden) audio.ctx.suspend().catch(() => {});
+  else if (audio.enabled) audio.ctx.resume().catch(() => {});
 });
 
 // ===========================================================================
-// 入力(タップ=よろこぶ / 長押し=なでなで、なでる場所で反応 3-6)
+// 入力(タップ=よろこぶ / 長押し=なでなで、当たった犬に作用)
 // ===========================================================================
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let downPos = null;
-let downOnDog = false;
+let pressedDog = null;
+let lastHitPoint = null;
 let petInterval = null;
 
-function raycastDog(clientX, clientY) {
+function pickDog(clientX, clientY) {
+  if (!dogs.length) return null;
   pointer.set((clientX / window.innerWidth) * 2 - 1, -(clientY / window.innerHeight) * 2 + 1);
   raycaster.setFromCamera(pointer, camera);
-  return raycaster.intersectObject(dog.hitSphere, false);
+  const hits = raycaster.intersectObjects(dogs.map((d) => d.hitSphere));
+  if (!hits.length) return null;
+  lastHitPoint = hits[0].point;
+  return dogs.find((d) => d.hitSphere === hits[0].object) || null;
 }
-function hitDog(x, y) { return raycastDog(x, y).length > 0; }
 
-// なでた場所を あたま / かお / からだ に分類
-function petRegion(clientX, clientY) {
-  const hits = raycastDog(clientX, clientY);
-  if (!hits.length) return 'petHead';
-  const local = dog.group.worldToLocal(hits[0].point.clone());
+function petRegion(d, point) {
+  if (!point) return 'petHead';
+  const local = d.group.worldToLocal(point.clone());
   if (local.y > 0.95) return 'petHead';
   if (local.z > 0.35 && local.y < 0.8) return 'petFace';
   return 'petBody';
@@ -1045,17 +1055,17 @@ function petRegion(clientX, clientY) {
 
 renderer.domElement.addEventListener('pointerdown', (e) => {
   initAudio();
-  if (audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume();
+  if (audio.ctx && audio.ctx.state === 'suspended' && audio.enabled) audio.ctx.resume();
   downPos = { x: e.clientX, y: e.clientY, time: performance.now() };
-  downOnDog = hitDog(e.clientX, e.clientY);
-  if (downOnDog) {
-    const region = petRegion(e.clientX, e.clientY);
+  pressedDog = pickDog(e.clientX, e.clientY);
+  if (pressedDog) {
+    const region = petRegion(pressedDog, lastHitPoint);
     let pets = 0;
     petInterval = setTimeout(function petLoop() {
-      dog.petting = true;
+      pressedDog.petting = true;
       playPet();
-      spawnFxAt(dog.group.position, 'note', randomOf(['♪', '💛', '♡']), 1);
-      if (pets === 0 || Math.random() < 0.18) speak(region, 2);
+      spawnFxAt(pressedDog.group.position, 'note', randomOf(['♪', '💛', '♡']), 1);
+      if (pets === 0 || Math.random() < 0.18) speak(pressedDog, region, 2);
       if (pets === 2) bond.add(2);
       pets++;
       petInterval = setTimeout(petLoop, 800);
@@ -1065,25 +1075,26 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
 
 window.addEventListener('pointerup', (e) => {
   clearTimeout(petInterval);
-  const wasPetting = dog.petting;
-  dog.petting = false;
-  if (!downPos) return;
+  const wasPetting = pressedDog && pressedDog.petting;
+  if (pressedDog) pressedDog.petting = false;
+  if (!downPos) { pressedDog = null; return; }
   const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
   const held = performance.now() - downPos.time;
   downPos = null;
-  if (downOnDog && !wasPetting && moved < 10 && held < 500) {
-    dog.react();
+  if (pressedDog && !wasPetting && moved < 10 && held < 500) {
+    pressedDog.react();
     playBark();
     setTimeout(playChirp, 350);
   }
+  pressedDog = null;
 });
 
 renderer.domElement.addEventListener('pointermove', (e) => {
-  renderer.domElement.style.cursor = hitDog(e.clientX, e.clientY) ? 'pointer' : 'grab';
+  renderer.domElement.style.cursor = pickDog(e.clientX, e.clientY) ? 'pointer' : 'grab';
 });
 
 // ===========================================================================
-// UI: ボタン / なまえ / スクショ / きずな
+// UI ボタン
 // ===========================================================================
 function bindClick(id, fn) {
   const el = document.getElementById(id);
@@ -1093,8 +1104,8 @@ bindClick('btn-look', lookAtMe);
 bindClick('btn-come', comeHere);
 bindClick('btn-ball', throwBall);
 bindClick('btn-treat', () => { giveTreat(TREAT_KINDS[treatIndex % TREAT_KINDS.length]); treatIndex++; });
-
-// スクショ(3-7)
+bindClick('btn-add', () => spawnDog({ pop: true }));
+bindClick('btn-remove', removeDog);
 bindClick('btn-shot', () => {
   renderer.render(scene, camera);
   renderer.domElement.toBlob((blob) => {
@@ -1107,28 +1118,9 @@ bindClick('btn-shot', () => {
   });
 });
 
-// なまえ(3-5)
-const nameModal = document.getElementById('name-modal');
-const nameInput = document.getElementById('name-input');
-bindClick('btn-name', () => {
-  nameInput.value = dogName;
-  nameModal.classList.add('show');
-  setTimeout(() => nameInput.focus(), 50);
-});
-bindClick('name-ok', () => {
-  setDogName(nameInput.value);
-  nameModal.classList.remove('show');
-  speak('arrived', 2.5);
-});
-bindClick('name-cancel', () => nameModal.classList.remove('show'));
-
 updateHearts();
-if (!dogName && !localStorage.getItem('pd_seen')) {
-  localStorage.setItem('pd_seen', '1');
-  setTimeout(() => { if (!dogName) { nameModal.classList.add('show'); } }, 2500);
-}
 
-window.__actions = { lookAtMe, comeHere, giveTreat, throwBall };
+window.__actions = { lookAtMe, comeHere, giveTreat, throwBall, spawnDog, removeDog };
 window.__setHour = (h) => { forcedHour = h; applyDaylight(currentHour()); };
 window.__bond = bond;
 
@@ -1138,6 +1130,7 @@ window.__bond = bond;
 const clock = new THREE.Clock();
 let lastBondLevel = bond.level;
 let daylightTick = 0;
+let speechTimer = 8 + Math.random() * 8;
 
 function stepProjectile(obj, dt, onBounce) {
   const u = obj.userData;
@@ -1158,43 +1151,31 @@ function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
 
-  dog.update(dt, t);
+  for (const d of dogs) d.update(dt, t);
 
-  // 時間帯をゆっくり更新(2秒ごと)
   daylightTick += dt;
   if (daylightTick > 2) { daylightTick = 0; applyDaylight(currentHour()); }
 
-  // きずな レベルアップ演出
   if (bond.level !== lastBondLevel) {
     lastBondLevel = bond.level;
-    spawnFxAt(dog.group.position, 'heart', '💛', 5);
-    speak('levelUp', 3);
+    const d = focusedDog();
+    if (d) { spawnFxAt(d.group.position, 'heart', '💛', 5); speak(d, 'levelUp', 3); }
   }
 
-  // 影
-  blobShadow.position.x = dog.group.position.x;
-  blobShadow.position.z = dog.group.position.z;
-  const airFade = Math.max(0.3, 1 - dog.group.position.y * 0.8);
-  blobShadow.scale.setScalar(airFade);
-  blobShadow.material.opacity = airFade;
-
-  // おやつの落下
   if (treat) stepProjectile(treat, dt, playBounce);
 
-  // ボールの物理・とってこい制御
   if (ball && ballState === 'flying') {
     const settled = stepProjectile(ball, dt, playBounce);
     ball.rotation.x += dt * 4;
     if (settled) {
-      ballState = 'fetch';
-      dog.goTo(ball.position.x, ball.position.z, pickUpBall);
+      fetcher = nearestDogTo(ball.position.x, ball.position.z, (d) => d.state !== 'eat') || dogs[0];
+      if (fetcher) { ballState = 'fetch'; fetcher.goTo(ball.position.x, ball.position.z, pickUpBall); }
+      else ballState = 'none';
     }
   }
 
-  // 雲
   for (const c of clouds) { c.position.x += c.userData.speed * dt; if (c.position.x > 36) c.position.x = -36; }
 
-  // ちょうちょ
   for (const b of butterflies) {
     const u = b.userData;
     u.phase += dt * u.speed;
@@ -1203,18 +1184,18 @@ function animate() {
     u.wl.rotation.y = flap; u.wr.rotation.y = -flap; b.rotation.y = -u.phase;
   }
 
-  // ひとりごと
-  if (dog.state !== 'sleep' && dog.state !== 'react' && dog.state !== 'eat') {
+  if (dogs.length) {
     speechTimer -= dt;
-    if (speechTimer <= 0) { speakIdle(); speechTimer = 16 + Math.random() * 20; }
+    if (speechTimer <= 0) { packIdleChatter(); speechTimer = 12 + Math.random() * 16; }
   }
 
-  // 吹き出し追従
   if (bubbleTimer > 0) {
     bubbleTimer -= dt;
-    const s = worldToScreen(dog.group.position, 1.75);
-    bubbleEl.style.left = `${s.x}px`;
-    bubbleEl.style.top = `${s.y}px`;
+    if (bubbleDog) {
+      const s = worldToScreen(bubbleDog.group.position, 1.75);
+      bubbleEl.style.left = `${s.x}px`;
+      bubbleEl.style.top = `${s.y}px`;
+    }
     if (bubbleTimer <= 0) bubbleEl.classList.remove('show');
   }
 
@@ -1232,10 +1213,8 @@ window.addEventListener('resize', () => {
 setTimeout(() => document.getElementById('hint').classList.add('faded'), 12000);
 
 // ===========================================================================
-// PWA(3-8)
+// PWA
 // ===========================================================================
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  });
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }

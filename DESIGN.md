@@ -46,7 +46,13 @@ assets/piramidog.glb  ──────────────→  GLTFLoader 
 1. **セットアップ**: renderer(NeutralToneMapping)/ 環境マップ / ライト・影
 2. **草原**: 地面・草(InstancedMesh)・花・雲・ちょうちょ(全部プロシージャル)
 3. **PyramidDogクラス**: ステートマシン+毎フレームのプロシージャルアニメ
-   - 状態: `idle / walk / sleep / react / attend / eat / zoomies / roll`(+petting フラグ)
+   - 状態: `idle / walk / sleep / react / attend / eat / zoomies`(+petting フラグ)
+     ※ごろん(roll)は動きが不自然で地面に埋まるため撤去
+   - **複数匹対応**: `dogs[]` 配列で管理(最大 `MAX_DOGS`=5)。`spawnDog({pop})` は
+     読み込み済みGLBを `clone(true)` して増やす(骨なしなので単純クローンでOK)。
+     匹数は localStorage `pd_count` に保存。各犬は独立して徘徊・睡眠・発話し、
+     影(blobShadow)も1匹1枚。タップ/なでは `pickDog()` が当たった犬に作用、
+     こっちむいて/おいで=全員、おやつ/ボール=一番近い犬(`focusedDog`/`nearestDogTo`)
    - 状態は `setState(state, 秒)` で遷移。時間切れで `chooseNext()` が次を抽選
      (低確率で zoomies / ちょうちょ追い / roll を混ぜる)
    - アニメは全て update() 内で計算(ホップ=|sin|、スクワッシュ、耳lift、まばたき、
@@ -59,9 +65,13 @@ assets/piramidog.glb  ──────────────→  GLTFLoader 
    `◯◯` を名前(なければ「きみ」)に置換
 6. **時間帯連動**: `applyDaylight(hour)` が空/フォグ/太陽/環境光/星の不透明度を補間。
    2秒ごとに実時刻で更新。`window.__setHour(h)` で上書きテスト
-7. **なつき度**: `bond`(localStorage `pd_bond`)。なでる/遊ぶ/ごはんで加点、
-   レベルで💛の数(#hearts)が増える
-8. **エフェクト / サウンド**: 💛/Zzz/♪(HTML)、Web Audio合成(わん・しゃくっ・バウンド等)
+7. **なつき度**: `bond`(localStorage `pd_bond`、群れ共通)。なでる/遊ぶ/ごはんで加点、
+   レベルで💛の数(#hearts)が増える。localStorageはユーザーのブラウザにオリジン単位で
+   保存(端末間同期はしない・他ユーザーとも別)
+8. **エフェクト / サウンド**: 💛/Zzz/♪(HTML)、Web Audio合成(わん・しゃくっ・バウンド等)。
+   **タブが隠れたら音停止**: `visibilitychange` で `AudioContext.suspend/resume`、
+   かつ `audioActive()`(`!document.hidden`)でスケジューラを止める(PC/スマホ共通)
+   - 全セリフと発生条件は **[SPEECH.md](SPEECH.md)** に一覧化(`LINES` と対応)
 9. **入力**: 犬タップ=react / 長押し=なでなで(`petRegion` で あたま/かお/からだ を判定し反応を分岐)
    / アクションボタン / なまえモーダル / スクショ / OrbitControlsカメラ
 10. **メインループ**: rAFで `dog.update` / おやつ・ボールの物理(`stepProjectile`)/ 時間帯tick ほか

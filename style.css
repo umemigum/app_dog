@@ -209,87 +209,42 @@ html, body {
   }
 }
 
-/* なまえ入力モーダル */
-#name-modal {
-  position: fixed;
-  inset: 0;
+/* ふやす / へらす */
+#dog-buttons {
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(40, 50, 30, 0.35);
-  backdrop-filter: blur(3px);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease;
-  z-index: 100;
+  gap: 6px;
+  margin-top: 2px;
 }
 
-#name-modal.show {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.modal-card {
-  background: #fffaf0;
-  border-radius: 22px;
-  padding: 24px 26px;
-  box-shadow: 0 10px 40px rgba(60, 45, 15, 0.3);
-  text-align: center;
-  width: min(84vw, 320px);
-}
-
-.modal-card p {
-  color: #5a4a2c;
-  font-size: 16px;
-  letter-spacing: 1px;
-  margin-bottom: 14px;
-}
-
-#name-input {
-  width: 100%;
-  border: 2px solid #e7d6a8;
-  border-radius: 12px;
-  padding: 10px 14px;
-  font-family: inherit;
-  font-size: 17px;
-  color: #4a3b23;
-  text-align: center;
-  outline: none;
-}
-
-#name-input:focus {
-  border-color: #f0c060;
-}
-
-.modal-buttons {
-  display: flex;
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.modal-buttons button {
-  flex: 1;
+#dog-buttons button {
   border: none;
   border-radius: 999px;
-  padding: 11px 0;
+  padding: 9px 14px;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(6px);
+  color: #5a4a2c;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 13px;
   letter-spacing: 1px;
   cursor: pointer;
+  box-shadow: 0 2px 10px rgba(80, 60, 20, 0.18);
   transition: transform 0.15s ease;
 }
 
-.modal-buttons button:active {
+#btn-remove {
+  padding: 9px 12px;
+}
+
+#dog-buttons button:active {
   transform: scale(0.94);
 }
 
-#name-cancel {
-  background: #ece4d3;
-  color: #7a6a4a;
-}
-
-#name-ok {
-  background: #f5c754;
-  color: #5a4413;
-  font-weight: bold;
+#dog-count {
+  color: #5a4a2c;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 999px;
+  padding: 4px 8px;
+  backdrop-filter: blur(6px);
 }
