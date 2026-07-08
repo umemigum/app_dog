@@ -46,20 +46,34 @@ assets/piramidog.glb  ──────────────→  GLTFLoader 
 1. **セットアップ**: renderer(NeutralToneMapping)/ 環境マップ / ライト・影
 2. **草原**: 地面・草(InstancedMesh)・花・雲・ちょうちょ(全部プロシージャル)
 3. **PyramidDogクラス**: ステートマシン+毎フレームのプロシージャルアニメ
-   - 状態: `idle / walk / sleep / react / attend / eat`(+petting フラグ)
+   - 状態: `idle / walk / sleep / react / attend / eat / zoomies / roll`(+petting フラグ)
    - 状態は `setState(state, 秒)` で遷移。時間切れで `chooseNext()` が次を抽選
-   - アニメは全て update() 内で計算(ホップ=|sin|、スクワッシュ、耳lift、まばたき)
-   - `goTo(x, z, onArrive)` で目的地+到着コールバック(おいで・りんごに使用)
-4. **アクション**: こっちむいて(`attend`)/ おいで(`goTo`)/ りんご(落下→歩き→`eat`)
-5. **おしゃべり**: 吹き出し(HTML)を3D座標投影で追従
-6. **エフェクト**: 💛/Zzz/♪ をHTMLで表示(fx-layer)
-7. **サウンド**: 音源ファイルなし、全てWeb Audioで合成(BGM=ペンタトニック+パッド、わん・しゃくっ等)
-8. **入力**: 犬タップ=react / 長押し=なでなで / ボタン3つ / OrbitControlsカメラ
-9. **メインループ**: rAFで `dog.update(dt, t)` ほか
+     (低確率で zoomies / ちょうちょ追い / roll を混ぜる)
+   - アニメは全て update() 内で計算(ホップ=|sin|、スクワッシュ、耳lift、まばたき、
+     歩行イージング、首かしげ rock、おしり振り yaw)
+   - `goTo(x, z, onArrive)` で目的地+到着コールバック(おいで・おやつ・ボールに使用)
+   - `mouth`(口もとの Object3D): ボール/食べ物をくわえる時の親
+4. **アクション**: こっちむいて(`attend`)/ おいで(`goTo`)/ おやつ(落下→歩き→`eat`、
+   りんご/ほね/クッキーを `TREATS` 定義で切替)/ ボール(`throwBall`→物理→fetch→carry→drop)
+5. **おしゃべり**: `LINES` を文脈タグ付きで持ち、`speak(tag)` / `speakIdle()`(時間帯を混ぜる)。
+   `◯◯` を名前(なければ「きみ」)に置換
+6. **時間帯連動**: `applyDaylight(hour)` が空/フォグ/太陽/環境光/星の不透明度を補間。
+   2秒ごとに実時刻で更新。`window.__setHour(h)` で上書きテスト
+7. **なつき度**: `bond`(localStorage `pd_bond`)。なでる/遊ぶ/ごはんで加点、
+   レベルで💛の数(#hearts)が増える
+8. **エフェクト / サウンド**: 💛/Zzz/♪(HTML)、Web Audio合成(わん・しゃくっ・バウンド等)
+9. **入力**: 犬タップ=react / 長押し=なでなで(`petRegion` で あたま/かお/からだ を判定し反応を分岐)
+   / アクションボタン / なまえモーダル / スクショ / OrbitControlsカメラ
+10. **メインループ**: rAFで `dog.update` / おやつ・ボールの物理(`stepProjectile`)/ 時間帯tick ほか
+11. **PWA**: `manifest.json` + `sw.js`(同一オリジンはキャッシュ優先、CDNはネット優先)
 
 ## ハマりどころメモ
 
-- **ブラウザキャッシュ**: GLB差し替え時は main.js の `MODEL_VERSION` を上げる(URLに ?v= が付く)。main.js自体は index.html の `?v=N` を上げる
+- **ブラウザキャッシュ**: GLB差し替え時は main.js の `MODEL_VERSION` を上げる(URLに ?v= が付く)。
+  main.js/style.css は index.html の `?v=N`、sw.js は `CACHE` 名と `CORE` の ?v= を揃える
 - **AI生成メッシュの目・影**: 目や影がテクスチャ/本体に焼き付いていることがある → 変換スクリプトの「塗りつぶし」処理が対応(暗いテクセルを肌色に)
-- **デバッグ用フック**(本番で消してよい): `window.piramidog`(犬)、`window.__debugCam`(カメラ)、`window.__actions`(アクション)
+- **スクショ**: `WebGLRenderer` は既定で描画バッファを保持しないので `preserveDrawingBuffer: true` が必須
+- **デバッグ用フック**(本番で消してよい): `window.piramidog`(犬)、`window.__debugCam`(カメラ)、
+  `window.__actions`(アクション)、`window.__setHour`(時刻)、`window.__bond`(なつき度)
 - 検証はプレビューで: ポーズ固定 → スクリーンショット → 目視、の繰り返し
+  (状態遷移の秒数は eval 越しの計測だと背景 rAF スロットリングで不正確。ポーズ固定が確実)

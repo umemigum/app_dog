@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#bfe9ff"/>
+  <rect y="300" width="512" height="212" fill="#7cc25e"/>
+  <!-- 耳 -->
+  <ellipse cx="150" cy="250" rx="52" ry="92" transform="rotate(28 150 250)" fill="#1a1611"/>
+  <ellipse cx="362" cy="250" rx="52" ry="92" transform="rotate(-28 362 250)" fill="#1a1611"/>
+  <!-- 本体(角丸三角) -->
+  <path d="M96 384 L416 384 Q436 384 424 366 L272 96 Q256 70 240 96 L88 366 Q76 384 96 384 Z" fill="#f1cf8b"/>
+  <!-- 足 -->
+  <ellipse cx="108" cy="384" rx="34" ry="24" fill="#f2e4be"/>
+  <ellipse cx="404" cy="384" rx="34" ry="24" fill="#f2e4be"/>
+  <!-- マズル -->
+  <ellipse cx="222" cy="286" rx="46" ry="30" fill="#f2e4be"/>
+  <ellipse cx="290" cy="286" rx="46" ry="30" fill="#f2e4be"/>
+  <!-- 目 -->
+  <circle cx="214" cy="238" r="15" fill="#1a1611"/>
+  <circle cx="298" cy="238" r="15" fill="#1a1611"/>
+  <circle cx="219" cy="233" r="5" fill="#fff"/>
+  <circle cx="303" cy="233" r="5" fill="#fff"/>
+  <!-- 鼻 -->
+  <ellipse cx="256" cy="262" rx="19" ry="15" fill="#1a1611"/>
+  <!-- 舌 -->
+  <ellipse cx="256" cy="312" rx="15" ry="22" fill="#e85a6e"/>
+</svg>

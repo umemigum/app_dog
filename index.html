@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#bfe9ff" />
   <title>ピラミッド犬 〜いやしのまきば〜</title>
-  <link rel="stylesheet" href="style.css?v=8" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="style.css?v=9" />
   <script type="importmap">
     {
       "imports": {
@@ -20,21 +22,38 @@
   <div id="title">
     <h1>ピラミッド犬</h1>
     <p>いやしの まきば</p>
+    <div id="hearts">🤍🤍🤍🤍</div>
   </div>
 
-  <button id="sound-toggle" title="おと オン/オフ">🔊</button>
+  <div id="top-buttons">
+    <button id="btn-name" title="なまえをつける">✏️</button>
+    <button id="btn-shot" title="しゃしんをとる">📷</button>
+    <button id="sound-toggle" title="おと オン/オフ">🔊</button>
+  </div>
 
   <div id="actions">
     <button id="btn-look">👀 こっちむいて</button>
     <button id="btn-come">🐾 おいで</button>
-    <button id="btn-apple">🍎 りんご</button>
+    <button id="btn-ball">🎾 ボール</button>
+    <button id="btn-treat">🍎 おやつ</button>
   </div>
 
-  <div id="hint">タップすると よろこぶよ ／ ながおしで なでなで</div>
+  <div id="hint">タップで よろこぶ ／ ながおしで なでなで ／ ボタンで あそぶ</div>
 
   <div id="bubble"></div>
   <div id="fx-layer"></div>
 
-  <script type="module" src="main.js?v=8"></script>
+  <div id="name-modal">
+    <div class="modal-card">
+      <p>なまえを つけてね</p>
+      <input id="name-input" type="text" maxlength="8" placeholder="ピラちゃん" />
+      <div class="modal-buttons">
+        <button id="name-cancel">あとで</button>
+        <button id="name-ok">きめた!</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="main.js?v=9"></script>
 </body>
 </html>

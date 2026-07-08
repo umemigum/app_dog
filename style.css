@@ -42,10 +42,22 @@ html, body {
   margin-top: 2px;
 }
 
-#sound-toggle {
+#hearts {
+  margin-top: 6px;
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+
+#top-buttons {
   position: fixed;
   top: 18px;
   right: 18px;
+  display: flex;
+  gap: 8px;
+  z-index: 20;
+}
+
+#top-buttons button {
   width: 48px;
   height: 48px;
   border: none;
@@ -58,7 +70,7 @@ html, body {
   transition: transform 0.15s ease;
 }
 
-#sound-toggle:active {
+#top-buttons button:active {
   transform: scale(0.9);
 }
 
@@ -195,4 +207,89 @@ html, body {
     opacity: 0;
     transform: translate(-50%, -220%) scale(1.15) rotate(8deg);
   }
+}
+
+/* なまえ入力モーダル */
+#name-modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(40, 50, 30, 0.35);
+  backdrop-filter: blur(3px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  z-index: 100;
+}
+
+#name-modal.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-card {
+  background: #fffaf0;
+  border-radius: 22px;
+  padding: 24px 26px;
+  box-shadow: 0 10px 40px rgba(60, 45, 15, 0.3);
+  text-align: center;
+  width: min(84vw, 320px);
+}
+
+.modal-card p {
+  color: #5a4a2c;
+  font-size: 16px;
+  letter-spacing: 1px;
+  margin-bottom: 14px;
+}
+
+#name-input {
+  width: 100%;
+  border: 2px solid #e7d6a8;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 17px;
+  color: #4a3b23;
+  text-align: center;
+  outline: none;
+}
+
+#name-input:focus {
+  border-color: #f0c060;
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.modal-buttons button {
+  flex: 1;
+  border: none;
+  border-radius: 999px;
+  padding: 11px 0;
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.modal-buttons button:active {
+  transform: scale(0.94);
+}
+
+#name-cancel {
+  background: #ece4d3;
+  color: #7a6a4a;
+}
+
+#name-ok {
+  background: #f5c754;
+  color: #5a4413;
+  font-weight: bold;
 }
