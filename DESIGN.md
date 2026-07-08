@@ -16,12 +16,14 @@
 [アセット制作]                       [ランタイム(ブラウザ)]
 AI生成モデル(Tripo3D GLB)           index.html …… UIオーバーレイ+importmap
    ↓ blender/build_from_tripo.py      main.js ……… すべてのロジック(下記)
-   ↓ (Blenderをヘッドレス実行)        style.css …… UIスタイル
+   ↓ piramidog_tripo_self.blend       style.css …… UIスタイル
+   ↓ blender/export_tripo_self.py
 assets/piramidog.glb  ──────────────→  GLTFLoader で読み込み
 ```
 
-- **Blenderは手作業ではなくスクリプト駆動**。`/Applications/Blender.app/Contents/MacOS/Blender --background --python blender/build_from_tripo.py` で GLB を再生成できる(同時に `blender/piramidog_tripo.blend` と確認レンダリング `blender/renders/*.png` も出力)
-- 変換スクリプトがやること: パーツの自動リネーム / 向き・スケール正規化 / 両目化 / 焼き付き目の塗りつぶし / とじ目生成 / 耳・舌のピボット設定
+- `blender/build_from_tripo.py` は Tripo3D GLB から初期のアプリ用 blend を作る変換スクリプト。パーツの自動リネーム / 向き・スケール正規化 / 両目化 / 焼き付き目の塗りつぶし / とじ目生成 / 耳・舌のピボット設定を行う。
+- 現行モデルは `blender/piramidog_tripo_self.blend`。元の `Body` は消し、`InnerBody` のみを見える本体として使う手編集済み版。
+- アプリ用 GLB は `/Applications/Blender.app/Contents/MacOS/Blender --background --python blender/export_tripo_self.py` で `piramidog_tripo_self.blend` から書き出す。
 
 ## モデルの規約(アプリとGLBの契約)
 
