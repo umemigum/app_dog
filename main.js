@@ -1241,9 +1241,33 @@ window.addEventListener('pointermove', (e) => {
 // ===========================================================================
 // UI ボタン
 // ===========================================================================
+// アクションパネル(左下)の開閉。スマホで邪魔にならないよう8秒操作がなければ自動収納
+let actionsCollapseTimer = null;
+const actionsEl = document.getElementById('actions');
+const actionsToggleEl = document.getElementById('actions-toggle');
+function setActionsCollapsed(collapsed) {
+  if (actionsEl) actionsEl.classList.toggle('collapsed', collapsed);
+  if (actionsToggleEl) actionsToggleEl.textContent = collapsed ? '🐾' : '✕';
+}
+function pokeActionsTimer() {
+  clearTimeout(actionsCollapseTimer);
+  actionsCollapseTimer = setTimeout(() => setActionsCollapsed(true), 8000);
+}
+function toggleActions() {
+  const willCollapse = !actionsEl.classList.contains('collapsed');
+  setActionsCollapsed(willCollapse);
+  if (!willCollapse) pokeActionsTimer();
+  else clearTimeout(actionsCollapseTimer);
+}
+if (actionsToggleEl) {
+  actionsToggleEl.addEventListener('click', (e) => { e.stopPropagation(); toggleActions(); });
+}
+setActionsCollapsed(false); // 初期状態は展開(自動収納があるので邪魔にならない)
+pokeActionsTimer();
+
 function bindClick(id, fn) {
   const el = document.getElementById(id);
-  if (el) el.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+  if (el) el.addEventListener('click', (e) => { e.stopPropagation(); pokeActionsTimer(); fn(); });
 }
 bindClick('btn-look', lookAtMe);
 bindClick('btn-come', comeHere);
@@ -1282,6 +1306,28 @@ function toggleMode() {
 bindClick('mode-toggle', toggleMode);
 applyModeUI();
 
+// つかいかたモーダル(❓)。初回訪問時は1秒後に自動表示、以降は❓ボタンからいつでも再表示
+const helpModalEl = document.getElementById('help-modal');
+function openHelp() {
+  if (helpModalEl) helpModalEl.classList.add('show');
+}
+function closeHelp() {
+  if (helpModalEl) helpModalEl.classList.remove('show');
+  localStorage.setItem('pd_help_seen', '1');
+}
+bindClick('btn-help', openHelp);
+bindClick('help-close', closeHelp);
+if (helpModalEl) {
+  // オーバーレイ(カードの外側)タップでも閉じる
+  helpModalEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (e.target === helpModalEl) closeHelp();
+  });
+}
+if (!localStorage.getItem('pd_help_seen')) {
+  setTimeout(openHelp, 1000);
+}
+
 updateHearts();
 
 window.__actions = {
@@ -1289,6 +1335,8 @@ window.__actions = {
   spawnChibi: () => spawnDog({ pop: true, chibi: true }),
   removeChibi: () => removeDog(true),
   toggleMode,
+  openHelp,
+  toggleActions,
 };
 window.__setHour = (h) => { forcedHour = h; applyDaylight(currentHour()); };
 window.__bond = bond;
@@ -1378,8 +1426,6 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
-
-setTimeout(() => document.getElementById('hint').classList.add('faded'), 12000);
 
 // ===========================================================================
 // PWA

@@ -1,10 +1,10 @@
 // ピラミッド犬 Service Worker(PWA / オフライン対応)
-const CACHE = 'piramidog-v12';
+const CACHE = 'piramidog-v13';
 const CORE = [
   './',
   './index.html',
-  './main.js?v=12',
-  './style.css?v=12',
+  './main.js?v=13',
+  './style.css?v=13',
   './manifest.json',
   './icon.svg',
   './assets/piramidog.glb?v=tripo-self-1',

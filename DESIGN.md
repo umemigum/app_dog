@@ -92,6 +92,18 @@ assets/piramidog.glb  ──────────────→  GLTFLoader 
    - 全セリフと発生条件は **[SPEECH.md](SPEECH.md)** に一覧化(`LINES` と対応)
 9. **入力**: 犬タップ=react / 長押し=なでなで(`petRegion` で あたま/かお/からだ を判定し反応を分岐)
    / アクションボタン / なまえモーダル / スクショ / OrbitControlsカメラ
+   - **アクションパネルの開閉(8秒自動収納)**: スマホで `#actions`(こっちむいて/おいで/
+     ボール/おやつ/ふやす行/ちび行)が邪魔にならないよう開閉式にしている。左下常設の
+     `#actions-toggle`(FAB、🐾⇄✕)で手動開閉できるほか、パネルが展開されてから
+     `pokeActionsTimer()` が8秒タイマーをセットし、時間切れで `setActionsCollapsed(true)`
+     により自動収納する(CSSの `.collapsed` で `translateX(-110%)` + フェードアウト)。
+     パネル内の任意のボタン押下は共通の `bindClick` ヘルパー内でタイマーをリセットするため、
+     ボタン追加時の実装漏れが起きない。初期状態は展開(自動収納があるので常設しても邪魔にならない)
+   - **❓ヘルプモーダル(pd_help_seen)**: `#top-buttons` の ❓ から `#help-modal` を開閉できる。
+     旧来の一行ヒント(`#hint`、12秒フェード)は視認性が低く廃止し、縦リスト形式のモーダルに置換。
+     初回訪問時のみ `localStorage.getItem('pd_help_seen')` が無ければ読み込み1秒後に自動表示し、
+     閉じたタイミングで `pd_help_seen='1'` を保存(以降は❓ボタンから手動でのみ表示)。
+     オーバーレイタップでも閉じる
    - **グラブ(つかんで持ち上げ移動)**: pointerdown 後、なでなで開始(550ms静止)より先に
      **14px以上動くと** グラブ判定(`window` の `pointermove` で監視。canvasの
      `pointermove`=カーソル変更とは別リスナー)。発動時は `clearTimeout(petInterval)` で
