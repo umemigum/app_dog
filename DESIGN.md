@@ -72,8 +72,15 @@ assets/piramidog.glb  ──────────────→  GLTFLoader 
    - `mouth`(口もとの Object3D): ボール/食べ物をくわえる時の親
 4. **アクション**: こっちむいて(`attend`)/ おいで(`goTo`)/ おやつ(落下→歩き→`eat`、
    りんご/ほね/クッキーを `TREATS` 定義で切替)/ ボール(`throwBall`→物理→fetch→carry→drop)
-5. **おしゃべり**: `LINES` を文脈タグ付きで持ち、`speak(tag)` / `speakIdle()`(時間帯を混ぜる)。
-   `◯◯` を名前(なければ「きみ」)に置換
+5. **おしゃべり**: `LINES_IYASHI` / `LINES_DOKU` を文脈タグ付きで持ち、`speak(tag)` / `speakIdle()`
+   (時間帯を混ぜる)。`◯◯` を名前(なければ「きみ」)に置換
+   - **モード(いやし ⇄ どくぜつ)**: `mode`(localStorage `pd_mode`、'iyashi' | 'doku'、群れ共通)。
+     セリフ取得は必ず `linePool(tag)` を経由させ、`mode` に応じて `LINES_IYASHI` / `LINES_DOKU` の
+     どちらを引くか切り替える(直接 `LINES_*[tag]` を参照しない)。おやつの感想
+     (`TREATS[kind].lines` / `.linesDoku`)も同様に `finishEating` で分岐。右上 😇/😈 ボタンで
+     トグル、切替の瞬間だけは `LINES` のタグを使わず固定文言を `showBubble` で直接表示する
+     (ツンデレ演出のため)。新しいセリフタグを足すときは両方の `LINES_*` に同じタグを追加し、
+     `SPEECH.md` の両モード表を更新すること
 6. **時間帯連動**: `applyDaylight(hour)` が空/フォグ/太陽/環境光/星の不透明度を補間。
    2秒ごとに実時刻で更新。`window.__setHour(h)` で上書きテスト
 7. **なつき度**: `bond`(localStorage `pd_bond`、群れ共通)。なでる/遊ぶ/ごはんで加点、
@@ -85,6 +92,19 @@ assets/piramidog.glb  ──────────────→  GLTFLoader 
    - 全セリフと発生条件は **[SPEECH.md](SPEECH.md)** に一覧化(`LINES` と対応)
 9. **入力**: 犬タップ=react / 長押し=なでなで(`petRegion` で あたま/かお/からだ を判定し反応を分岐)
    / アクションボタン / なまえモーダル / スクショ / OrbitControlsカメラ
+   - **グラブ(つかんで持ち上げ移動)**: pointerdown 後、なでなで開始(550ms静止)より先に
+     **14px以上動くと** グラブ判定(`window` の `pointermove` で監視。canvasの
+     `pointermove`=カーソル変更とは別リスナー)。発動時は `clearTimeout(petInterval)` で
+     なでなでタイマーを止め、犬の状態を `held`(hopY固定+ゆらゆら揺れ、`stateTime`は
+     実質無期限の9999)にし、`controls.enabled = false` でカメラ回転と操作が衝突しないように
+     する。掴んだ犬がボールを運搬/追跡中(`fetcher === grabbedDog`)だった場合は、
+     くわえていたボールを `scene.attach` で本体に戻すなどの後始末をしてから状態遷移する。
+     `pointermove` 中は raycaster と地面平面(`groundPlane`, y=0)の交点を犬のx/zに反映
+     (±14でクランプ、マップ外に出ない)。`pointerup` で `held → drop` に切替え、
+     `controls.enabled` を戻す。`drop` 状態は簡易重力(`dropV -= 20*dt`)で落下し、
+     着地(`dropY <= 0`)で `playBounce` + ハートエフェクト + `speak('dropped')` して `idle` に戻る。
+     `attend` / `goTo` / `react` は `held` / `drop` 中は何もしないようガードし、
+     `packIdleChatter` の話者候補からも除外する
 10. **メインループ**: rAFで `dog.update` / おやつ・ボールの物理(`stepProjectile`)/ 時間帯tick ほか
 11. **PWA**: `manifest.json` + `sw.js`(同一オリジンはキャッシュ優先、CDNはネット優先)
 

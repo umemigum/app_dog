@@ -327,6 +327,8 @@ class PyramidDog {
     this.happyTimer = 0;
     this.zoomLeft = 0;
     this.spawnT = 1; // 1=通常, <1=ポップイン中
+    this.dropY = 0; // つかんで はなした後の落下高さ
+    this.dropV = 0; // 落下速度
   }
 
   attachModel(root) {
@@ -377,7 +379,7 @@ class PyramidDog {
   }
 
   goTo(x, z, onArrive) {
-    if (this.state === 'eat') return;
+    if (this.state === 'eat' || this.state === 'held' || this.state === 'drop') return;
     if (this.state === 'sleep') this.wake();
     this.target.set(x, z);
     this.clampTarget();
@@ -408,7 +410,7 @@ class PyramidDog {
   wake() { this.awakeTime = 0; this.setState('idle', 1 + Math.random() * 2); }
 
   attend(angle) {
-    if (this.state === 'eat') return;
+    if (this.state === 'eat' || this.state === 'held' || this.state === 'drop') return;
     if (this.state === 'sleep') this.wake();
     this.attendAngle = angle;
     this.tiltDir = Math.random() < 0.5 ? 1 : -1;
@@ -417,7 +419,7 @@ class PyramidDog {
   }
 
   react() {
-    if (this.state === 'eat') return;
+    if (this.state === 'eat' || this.state === 'held' || this.state === 'drop') return;
     if (this.state === 'sleep') { this.wake(); speak(this, 'wake', 2); return; }
     this.onArrive = null;
     this.state = 'react';
@@ -530,6 +532,29 @@ class PyramidDog {
         squash = p < 0.15 ? 0.85 : 1.03;
         eyesClosed = p > 0.2 && p < 0.85;
         if (this.reactT >= 1) { this.heading = this.reactBase; this.setState('idle', 1.5 + Math.random() * 2); }
+        break;
+      }
+      case 'held': {
+        // ぶらさがって ゆらゆら
+        hopY = 1.1;
+        rock = Math.sin(t * 3) * 0.12;
+        earTarget = 0.9;
+        squash = 1;
+        break;
+      }
+      case 'drop': {
+        this.dropV -= 20 * dt;
+        this.dropY += this.dropV * dt;
+        hopY = Math.max(0, this.dropY);
+        earTarget = 0.6;
+        if (this.dropY <= 0) {
+          this.dropY = 0;
+          playBounce();
+          spawnFxAt(this.group.position, 'heart', '💛', 2, { x: 0, y: 0 }, 1.6 * this.baseScale);
+          speak(this, 'dropped', 2.2);
+          bond.add(1);
+          this.setState('idle', 1.5 + Math.random() * 2);
+        }
         break;
       }
     }
@@ -729,6 +754,7 @@ function comeHere() {
 const TREATS = {
   apple: {
     emoji: '🍎', bites: 3, lines: ['おいしい〜!', 'りんご だいすき!', 'あまずっぱい!'],
+    linesDoku: ['すっぱ。…もう1こ よこせ', 'まあ たべられなくは ない'],
     make() {
       const g = new THREE.Group();
       const fruit = new THREE.Mesh(new THREE.SphereGeometry(0.16, 20, 16), new THREE.MeshStandardMaterial({ color: 0xd93b36, roughness: 0.35 }));
@@ -742,6 +768,7 @@ const TREATS = {
   },
   bone: {
     emoji: '🦴', bites: 4, lines: ['ほね さいこう!', 'かみごたえ ばつぐん!', 'ごきげん!'],
+    linesDoku: ['ふん、まあまあだな', 'かみごたえだけは みとめる'],
     make() {
       const g = new THREE.Group();
       const mat = new THREE.MeshStandardMaterial({ color: 0xf3ecd6, roughness: 0.5 });
@@ -756,6 +783,7 @@ const TREATS = {
   },
   cookie: {
     emoji: '🍪', bites: 3, lines: ['あまくて しあわせ!', 'クッキー もっと!', 'さくさく!'],
+    linesDoku: ['あまい。…きらいじゃない', 'こんなもので つられないぞ(もぐもぐ)'],
     make() {
       const g = new THREE.Group();
       const c = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.06, 20), new THREE.MeshStandardMaterial({ color: 0xcaa15e, roughness: 0.7 }));
@@ -818,7 +846,8 @@ function finishEating(d) {
   if (treat) { scene.remove(treat); treat = null; }
   d.eating = null;
   spawnFxAt(d.group.position, 'heart', '💛', 3, { x: 0, y: 0 }, 1.6 * d.baseScale);
-  showBubble(d, randomOf((treatDef || TREATS.apple).lines), 2.5);
+  const def = treatDef || TREATS.apple;
+  showBubble(d, randomOf(mode === 'doku' ? def.linesDoku : def.lines), 2.5);
   playChirp();
   bond.add(3);
   treatEater = null;
@@ -890,9 +919,14 @@ function dropBall() {
 }
 
 // ===========================================================================
+// モード(いやし ⇄ どくぜつ)
+// ===========================================================================
+let mode = localStorage.getItem('pd_mode') || 'iyashi'; // 'iyashi' | 'doku'
+
+// ===========================================================================
 // おしゃべり(文脈タグ付き)
 // ===========================================================================
-const LINES = {
+const LINES_IYASHI = {
   idle:   ['きょうも いいてんき だね!', 'おさんぽ たのしいなぁ', 'くさの におい、だいすき', 'ずっと いっしょに いようね', 'きみと いると あんしんする〜', 'わん!'],
   morning:['おはよう! きょうも あそぼ?', 'あさの くうき きもちいい〜', 'ん〜、よく ねむれた!'],
   day:    ['おひさま ぽかぽか!', 'ちょうちょ みつけた!', 'ピラミッドは じょうぶで じまんなんだ'],
@@ -916,7 +950,43 @@ const LINES = {
   hello:   ['こんにちは!', 'はじめまして!', 'なかまに いれて!'],
   helloChibi: ['ちっちゃいけど よろしくね!', 'ちびだよ! よろしく!', 'ぼくも なかまに いれて!'],
   levelUp: ['きみと なかよしに なれた きがする!', 'えへへ、だいすきが ふえた!'],
+  grabbed: ['わーい、たかいたかい!', 'ふわふわ する〜!'],
+  dropped: ['とうちゃく!', 'もういっかい やって!'],
 };
+
+const LINES_DOKU = {
+  idle:   ['ひまか? おれは いそがしい(ひなたぼっこで)', 'べつに きみを まってた わけじゃないし', 'ふーん、きょうも いるんだ', 'この くさ、あじは いまいちだな', 'わん(おざなり)'],
+  morning:['あさから げんきだな…みならえない', 'ふぁ…もう おきる じかん?'],
+  day:    ['ひるねの じゃまだけは するなよ', 'おひさま? まあ わるくない'],
+  evening:['ゆうやけ? …まあ きれいだけど?', 'はらへった。はやく なんか くれ'],
+  night:  ['よふかし するなよ、おれは ねる', 'ほし? かってに みろ。…きれいだな'],
+  tap:    ['いてっ…べつに うれしくないし', 'なんだよ、かまって ほしいのか?', '…もういっかい やっても いいぞ'],
+  petHead:['や、やめろって…(みみ ぴこぴこ)', 'そこは…わるくない'],
+  petFace:['かおは やめろ! …つづけろ'],
+  petBody:['くすぐったいって いってるだろ!'],
+  lookAt: ['なんだよ', 'よぶな。…で、なに?'],
+  coming: ['しかたないから いってやる', 'いそがしいんだけど…まあいい'],
+  sleep:  ['おれの ひるねを じゃまするなよ', 'zzz…(いびき)'],
+  wake:   ['…おこしたな?', 'いいところ だったのに'],
+  treatDrop:['ふん、たべてやっても いい', 'わいろか? …うけとる'],
+  ballThrow:['とってこい とか いうな…いくけど', 'なげたな? おぼえてろ(いってくる)'],
+  ballGot:  ['とれた。とうぜんだろ'],
+  ballReturn:['ほら。…もういっかい なげても いいぞ', 'かえしてやる。かんしゃしろよ'],
+  chaseStart:['ちょうちょごときが おれから にげられると おもうなよ'],
+  chase:   ['…みのがして やっただけだし'],
+  zoomies: ['うおおお! …いまのは わざとだ'],
+  hello:   ['ふん、よろしく', 'なかまが ひつようか?'],
+  helloChibi: ['ちいさいけど なめるなよ', 'ちびって いうな!'],
+  levelUp: ['べつに なついて ないからな! …ちょっとだけだぞ'],
+  grabbed: ['おい! おろせ! …たかくて わるくないけど', 'あつかいが ざつなんだよ!'],
+  dropped: ['らんぼうに おくな!', '…ふん、たのしかったけど'],
+};
+
+// 現在のモードに応じたセリフ集合を返す
+function linePool(tag) {
+  const L = mode === 'doku' ? LINES_DOKU : LINES_IYASHI;
+  return L[tag] || L.idle;
+}
 
 const bubbleEl = document.getElementById('bubble');
 let bubbleTimer = 0;
@@ -929,14 +999,14 @@ function showBubble(d, text, dur = 3.5) {
   bubbleDog = d;
 }
 function speak(d, tag, dur = 3) {
-  showBubble(d, randomOf(LINES[tag] || LINES.idle), dur);
+  showBubble(d, randomOf(linePool(tag)), dur);
 }
 function packIdleChatter() {
-  const talkers = dogs.filter((d) => d.state !== 'sleep' && d.state !== 'react' && d.state !== 'eat');
+  const talkers = dogs.filter((d) => d.state !== 'sleep' && d.state !== 'react' && d.state !== 'eat' && d.state !== 'held' && d.state !== 'drop');
   if (!talkers.length) return;
   const d = randomOf(talkers);
   const band = timeBand();
-  const pool = LINES.idle.concat(LINES[band] || []);
+  const pool = linePool('idle').concat(linePool(band) || []);
   showBubble(d, randomOf(pool), 3.5);
 }
 
@@ -1059,6 +1129,9 @@ let downPos = null;
 let pressedDog = null;
 let lastHitPoint = null;
 let petInterval = null;
+let grabbedDog = null; // つかんで持ち上げ中の犬
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const _groundHit = new THREE.Vector3();
 
 function pickDog(clientX, clientY) {
   if (!dogs.length) return null;
@@ -1099,6 +1172,17 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
 });
 
 window.addEventListener('pointerup', (e) => {
+  if (grabbedDog) {
+    controls.enabled = true;
+    grabbedDog.dropY = 1.1;
+    grabbedDog.dropV = 0;
+    grabbedDog.setState('drop', 5);
+    grabbedDog = null;
+    renderer.domElement.style.cursor = 'grab';
+    clearTimeout(petInterval);
+    downPos = null; pressedDog = null;
+    return; // タップ/なでなで判定はスキップ
+  }
   clearTimeout(petInterval);
   const wasPetting = pressedDog && pressedDog.petting;
   if (pressedDog) pressedDog.petting = false;
@@ -1116,6 +1200,42 @@ window.addEventListener('pointerup', (e) => {
 
 renderer.domElement.addEventListener('pointermove', (e) => {
   renderer.domElement.style.cursor = pickDog(e.clientX, e.clientY) ? 'pointer' : 'grab';
+});
+
+// つかむジェスチャの判定+グラブ中の位置追従(canvasのpointermoveとは別に window で監視)
+window.addEventListener('pointermove', (e) => {
+  if (grabbedDog) {
+    pointer.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+    raycaster.setFromCamera(pointer, camera);
+    if (raycaster.ray.intersectPlane(groundPlane, _groundHit)) {
+      grabbedDog.group.position.x = THREE.MathUtils.clamp(_groundHit.x, -14, 14);
+      grabbedDog.group.position.z = THREE.MathUtils.clamp(_groundHit.z, -14, 14);
+    }
+    return;
+  }
+  if (pressedDog && downPos && !grabbedDog) {
+    const moved = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+    if (moved > 14) {
+      // なでなでタイマーを解除して グラブ に切り替える
+      clearTimeout(petInterval);
+      pressedDog.petting = false;
+      if (pressedDog.state !== 'eat') {
+        grabbedDog = pressedDog;
+        controls.enabled = false; // カメラ回転と衝突させない
+        if (grabbedDog.state === 'sleep') grabbedDog.wake();
+        grabbedDog.onArrive = null;
+        // ボール運搬・追跡中の犬を掴んだ時の後始末
+        if (fetcher === grabbedDog) {
+          if (ballState === 'carry' && ball) { scene.attach(ball); ball.scale.setScalar(1); ball.position.y = 0.17; ball.userData = {}; }
+          ballState = 'none'; fetcher = null;
+        }
+        grabbedDog.setState('held', 9999);
+        speak(grabbedDog, 'grabbed', 2);
+        playTone({ freq: 400, freqEnd: 900, dur: 0.25, type: 'sine', gain: 0.12 }); // ひょい
+        renderer.domElement.style.cursor = 'grabbing';
+      }
+    }
+  }
 });
 
 // ===========================================================================
@@ -1145,12 +1265,30 @@ bindClick('btn-shot', () => {
   });
 });
 
+// モード切替(いやし ⇄ どくぜつ)
+const modeBtn = document.getElementById('mode-toggle');
+function applyModeUI() {
+  if (modeBtn) modeBtn.textContent = mode === 'doku' ? '😈' : '😇';
+}
+function toggleMode() {
+  mode = mode === 'doku' ? 'iyashi' : 'doku';
+  localStorage.setItem('pd_mode', mode);
+  applyModeUI();
+  const d = focusedDog();
+  if (d) {
+    showBubble(d, mode === 'doku' ? 'ふん、ここからは しんらつに いくからな' : '…なんてね。ほんとは だいすきだよ', 3);
+  }
+}
+bindClick('mode-toggle', toggleMode);
+applyModeUI();
+
 updateHearts();
 
 window.__actions = {
   lookAtMe, comeHere, giveTreat, throwBall, spawnDog, removeDog,
   spawnChibi: () => spawnDog({ pop: true, chibi: true }),
   removeChibi: () => removeDog(true),
+  toggleMode,
 };
 window.__setHour = (h) => { forcedHour = h; applyDaylight(currentHour()); };
 window.__bond = bond;
