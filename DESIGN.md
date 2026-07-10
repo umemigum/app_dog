@@ -68,7 +68,12 @@ assets/piramidog.glb  ──────────────→  GLTFLoader 
      (低確率で zoomies / ちょうちょ追い / roll を混ぜる)
    - アニメは全て update() 内で計算(ホップ=|sin|、スクワッシュ、耳lift、まばたき、
      歩行イージング、首かしげ rock、おしり振り yaw)
-   - `goTo(x, z, onArrive)` で目的地+到着コールバック(おいで・おやつ・ボールに使用)
+   - `goTo(x, z, onArrive)` で目的地+到着コールバック(おいで・おやつ・ボールに使用)。
+     **注意**: onArrive は別のアクション(attend/goTo/react/グラブ)で上書き・消去される。
+     そのため animate 内に**ウォッチドッグ**(0.7秒ごと)があり、放置されたおやつ/地面のボールは
+     手空きの犬(idle)を再派遣、くわえたまま中断されたボールはその場に置いて自己回復する
+     (`treatWalker` / `dispatchTreatWalk` / `forceDropBallInPlace`)。
+     到着コールバック側にも距離チェック(>1.6で実行しない)があり、遠すぎる場合は再派遣に任せる
    - `mouth`(口もとの Object3D): ボール/食べ物をくわえる時の親
 4. **アクション**: こっちむいて(`attend`)/ おいで(`goTo`)/ おやつ(落下→歩き→`eat`、
    りんご/ほね/クッキーを `TREATS` 定義で切替)/ ボール(`throwBall`→物理→fetch→carry→drop)

@@ -675,6 +675,7 @@ function removeDog(chibi) {
   scene.remove(d.shadow);
   if (d === fetcher) { if (ball) { scene.remove(ball); ball = null; } fetcher = null; ballState = 'none'; }
   if (d === treatEater) { if (treat) { scene.remove(treat); treat = null; } treatEater = null; }
+  if (d === treatWalker) treatWalker = null; // おやつが残っていればウォッチドッグが別の犬を再派遣
   if (chibi) localStorage.setItem('pd_chibi_count', String(dogs.filter((x) => x.isChibi).length));
   else localStorage.setItem('pd_count', String(dogs.filter((x) => !x.isChibi).length));
   updateDogCountUI();
@@ -803,6 +804,28 @@ let treatIndex = 0;
 let treat = null;
 let treatDef = null;
 let treatEater = null;
+let treatWalker = null; // おやつへ向かっている犬(中断検知用)
+
+// おやつへ歩かせて、着いたら食べさせる(初回派遣と中断時の再派遣で共用)
+function dispatchTreatWalk(eater) {
+  treatWalker = eater;
+  const dx = treat.position.x - eater.group.position.x;
+  const dz = treat.position.z - eater.group.position.z;
+  const d = Math.hypot(dx, dz) || 1;
+  eater.goTo(treat.position.x - (dx / d) * 0.85, treat.position.z - (dz / d) * 0.85, () => {
+    if (!treat) return;
+    // 中断やタイムアウトで遠くにいるなら食べない(ウォッチドッグが再派遣する)
+    const dd = Math.hypot(treat.position.x - eater.group.position.x, treat.position.z - eater.group.position.z);
+    if (dd > 1.6) return;
+    eater.heading = Math.atan2(treat.position.x - eater.group.position.x, treat.position.z - eater.group.position.z);
+    eater.eating = treat;
+    eater.eatT = 0;
+    eater.nextBite = 0.5;
+    eater.eatDuration = 0.5 + (treatDef ? treatDef.bites : 3) * 0.55 + 0.2;
+    treatEater = eater;
+    eater.setState('eat', 12);
+  });
+}
 
 function giveTreat(kind) {
   if (!dogs.length || treat) return;
@@ -821,17 +844,7 @@ function giveTreat(kind) {
   scene.add(treat);
   playTone({ freq: 520, freqEnd: 780, dur: 0.15, type: 'sine', gain: 0.12 });
   speak(eater, 'treatDrop', 2);
-  const dx = ax - pos.x, dz = az - pos.z, d = Math.hypot(dx, dz) || 1;
-  eater.goTo(ax - (dx / d) * 0.85, az - (dz / d) * 0.85, () => {
-    if (!treat) return;
-    eater.heading = Math.atan2(treat.position.x - eater.group.position.x, treat.position.z - eater.group.position.z);
-    eater.eating = treat;
-    eater.eatT = 0;
-    eater.nextBite = 0.5;
-    eater.eatDuration = 0.5 + def.bites * 0.55 + 0.2;
-    treatEater = eater;
-    eater.setState('eat', 12);
-  });
+  dispatchTreatWalk(eater);
 }
 
 function biteTreat() {
@@ -851,6 +864,7 @@ function finishEating(d) {
   playChirp();
   bond.add(3);
   treatEater = null;
+  treatWalker = null;
   d.setState('idle', 2 + Math.random() * 2);
 }
 
@@ -891,6 +905,9 @@ function throwBall() {
 
 function pickUpBall() {
   if (!ball || !fetcher) { ballState = 'none'; return; }
+  // 中断やタイムアウトで遠くにいるなら拾わない(ウォッチドッグが再派遣する)
+  const dd = Math.hypot(ball.position.x - fetcher.group.position.x, ball.position.z - fetcher.group.position.z);
+  if (dd > 1.6) return;
   ballState = 'carry';
   scene.remove(ball);
   fetcher.mouth.add(ball);
@@ -902,6 +919,18 @@ function pickUpBall() {
   const dist = Math.min(4.2, Math.max(2.5, camera.position.length() * 0.4));
   fetcher.goTo(dir.x * dist, dir.z * dist, dropBall);
   speak(fetcher, 'ballGot', 1.8);
+}
+
+// くわえたまま運搬できなくなった時、その場にボールを置く
+function forceDropBallInPlace() {
+  if (ball && ballState === 'carry') {
+    scene.attach(ball);
+    ball.scale.setScalar(1);
+    ball.position.y = 0.17;
+    ball.userData = {};
+  }
+  ballState = 'none';
+  fetcher = null;
 }
 
 function dropBall() {
@@ -1225,10 +1254,7 @@ window.addEventListener('pointermove', (e) => {
         if (grabbedDog.state === 'sleep') grabbedDog.wake();
         grabbedDog.onArrive = null;
         // ボール運搬・追跡中の犬を掴んだ時の後始末
-        if (fetcher === grabbedDog) {
-          if (ballState === 'carry' && ball) { scene.attach(ball); ball.scale.setScalar(1); ball.position.y = 0.17; ball.userData = {}; }
-          ballState = 'none'; fetcher = null;
-        }
+        if (fetcher === grabbedDog) forceDropBallInPlace();
         grabbedDog.setState('held', 9999);
         speak(grabbedDog, 'grabbed', 2);
         playTone({ freq: 400, freqEnd: 900, dur: 0.25, type: 'sine', gain: 0.12 }); // ひょい
@@ -1347,6 +1373,7 @@ window.__bond = bond;
 const clock = new THREE.Clock();
 let lastBondLevel = bond.level;
 let daylightTick = 0;
+let watchdogT = 0;
 let speechTimer = 8 + Math.random() * 8;
 
 function stepProjectile(obj, dt, onBounce) {
@@ -1380,6 +1407,32 @@ function animate() {
   }
 
   if (treat) stepProjectile(treat, dt, playBounce);
+
+  // 迷子のおやつ/ボールの見張り(別アクションで中断されても自己回復する)
+  watchdogT += dt;
+  if (watchdogT > 0.7) {
+    watchdogT = 0;
+    // おやつ: 着地済みなのに誰も食べておらず、向かっている犬もいない → 手空きの犬を再派遣
+    if (treat && treat.userData.vy === undefined && !treatEater) {
+      const enRoute = treatWalker && treatWalker.state === 'walk' && treatWalker.onArrive;
+      if (!enRoute) {
+        const d = nearestDogTo(treat.position.x, treat.position.z, (x) => x.state === 'idle');
+        if (d) dispatchTreatWalk(d);
+      }
+    }
+    // ボール: 地面にあるのに誰も取りに向かっていない → 再派遣
+    if (ball && ballState === 'fetch') {
+      const enRoute = fetcher && fetcher.state === 'walk' && fetcher.onArrive;
+      if (!enRoute) {
+        const d = nearestDogTo(ball.position.x, ball.position.z, (x) => x.state === 'idle');
+        if (d) { fetcher = d; d.goTo(ball.position.x, ball.position.z, pickUpBall); }
+      }
+    }
+    // ボール: くわえたまま運搬が中断された → その場に置く
+    if (ballState === 'carry' && fetcher && !(fetcher.state === 'walk' && fetcher.onArrive)) {
+      forceDropBallInPlace();
+    }
+  }
 
   if (ball && ballState === 'flying') {
     const settled = stepProjectile(ball, dt, playBounce);
