@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#bfe9ff" />
   <title>ピラミッド犬 〜いやしのまきば〜</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="stylesheet" href="style.css?v=10" />
+  <link rel="stylesheet" href="style.css?v=11" />
   <script type="importmap">
     {
       "imports": {
@@ -35,10 +35,15 @@
     <button id="btn-come">🐾 おいで</button>
     <button id="btn-ball">🎾 ボール</button>
     <button id="btn-treat">🍎 おやつ</button>
-    <div id="dog-buttons">
+    <div id="dog-buttons" class="dog-row">
       <button id="btn-add">🐶➕ ふやす</button>
       <button id="btn-remove" title="1ぴき おかえり">➖</button>
       <span id="dog-count">1/5</span>
+    </div>
+    <div id="dog-buttons-chibi" class="dog-row">
+      <button id="btn-add-chibi">🐶➕ ちび</button>
+      <button id="btn-remove-chibi" title="1ぴき おかえり">➖</button>
+      <span id="chibi-count">0/5</span>
     </div>
   </div>
 
@@ -47,6 +52,6 @@
   <div id="bubble"></div>
   <div id="fx-layer"></div>
 
-  <script type="module" src="main.js?v=10"></script>
+  <script type="module" src="main.js?v=11"></script>
 </body>
 </html>

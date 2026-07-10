@@ -278,7 +278,9 @@ const _q = new THREE.Quaternion();
 const _earAxis = new THREE.Vector3(0, 0, 1);
 
 class PyramidDog {
-  constructor() {
+  constructor({ scale = 1 } = {}) {
+    this.baseScale = scale;
+    this.isChibi = scale < 1;
     this.group = new THREE.Group();
     this.body = new THREE.Group();
     this.group.add(this.body);
@@ -422,7 +424,7 @@ class PyramidDog {
     this.reactT = 0;
     this.reactBase = this.heading;
     this.happyTimer = 2.5;
-    spawnFxAt(this.group.position, 'heart', '💛', 3);
+    spawnFxAt(this.group.position, 'heart', '💛', 3, { x: 0, y: 0 }, 1.6 * this.baseScale);
     bond.add(1);
     if (Math.random() < 0.4) speak(this, 'tap', 2.5);
   }
@@ -431,9 +433,9 @@ class PyramidDog {
     // ポップイン(ふやした時)
     if (this.spawnT < 1) {
       this.spawnT = Math.min(1, this.spawnT + dt / 0.45);
-      this.group.scale.setScalar(Math.max(0.001, easeOutBack(this.spawnT)));
-    } else if (this.group.scale.x !== 1) {
-      this.group.scale.setScalar(1);
+      this.group.scale.setScalar(Math.max(0.001, this.baseScale * easeOutBack(this.spawnT)));
+    } else if (this.group.scale.x !== this.baseScale) {
+      this.group.scale.setScalar(this.baseScale);
     }
 
     if (this.state !== 'sleep') this.awakeTime += dt;
@@ -479,7 +481,7 @@ class PyramidDog {
         this.heading += shortestAngle(this.heading, want) * Math.min(1, dt * (zoom ? 6 : 4));
         const accel = Math.min(1, this.walkElapsed / 0.5);
         const decel = Math.min(1, dist / 0.9);
-        const base = zoom ? 2.6 : 1.15;
+        const base = (zoom ? 2.6 : 1.15) * (0.5 + 0.5 * this.baseScale);
         const sp = base * Math.min(accel, decel) + 0.12;
         pos.x += Math.sin(this.heading) * sp * dt;
         pos.z += Math.cos(this.heading) * sp * dt;
@@ -496,7 +498,7 @@ class PyramidDog {
         eyesClosed = true;
         squash = 1 + Math.sin(t * 1.1) * 0.035;
         this.zzzTimer -= dt;
-        if (this.zzzTimer <= 0) { spawnFxAt(this.group.position, 'zzz', 'Z', 1, { x: 40, y: -60 }); this.zzzTimer = 1.6; }
+        if (this.zzzTimer <= 0) { spawnFxAt(this.group.position, 'zzz', 'Z', 1, { x: 40, y: -60 }, 1.6 * this.baseScale); this.zzzTimer = 1.6; }
         if (this.stateTime <= 0) this.wake();
         break;
       }
@@ -539,7 +541,7 @@ class PyramidDog {
     }
     if (this.happyTimer > 0 || this.petting) yaw = Math.sin(t * 17) * 0.05 * (this.petting ? 0.7 : 1);
 
-    this.group.position.y = hopY;
+    this.group.position.y = hopY * this.baseScale;
     this.group.rotation.y = this.heading + yaw;
     this.body.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash));
     this.body.rotation.z = rock;
@@ -552,7 +554,7 @@ class PyramidDog {
     this.shadow.position.z = this.group.position.z;
     const airFade = Math.max(0.3, 1 - hopY * 0.8);
     const sc = airFade * (this.spawnT < 1 ? this.spawnT : 1);
-    this.shadow.scale.setScalar(sc);
+    this.shadow.scale.setScalar(sc * this.baseScale);
     this.shadow.material.opacity = airFade;
 
     if (!this.loaded) return;
@@ -588,17 +590,20 @@ function easeOutBack(x) { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.
 function randomOf(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 
 // ===========================================================================
-// 群れ(複数のピラミッド犬)
+// 群れ(複数のピラミッド犬。通常サイズ+ちびサイズを同じ配列で管理)
 // ===========================================================================
-const MAX_DOGS = 5;
+const MAX_NORMAL = 5;
+const MAX_CHIBI = 5;
 const dogs = [];
 let modelProto = null;
 
 function cloneModel() { return modelProto ? modelProto.clone(true) : null; }
 
 function spawnDog(opts = {}) {
-  if (dogs.length >= MAX_DOGS) return null;
-  const d = new PyramidDog();
+  const chibi = !!opts.chibi;
+  const countOfKind = dogs.filter((d) => d.isChibi === chibi).length;
+  if (countOfKind >= (chibi ? MAX_CHIBI : MAX_NORMAL)) return null;
+  const d = new PyramidDog(chibi ? { scale: 0.5 } : {});
   if (modelProto) d.attachModel(cloneModel());
   // 位置: 最初の1匹は中央、以降は既存の犬の近くに
   if (dogs.length === 0) {
@@ -616,26 +621,37 @@ function spawnDog(opts = {}) {
   if (opts.pop) {
     d.spawnT = 0;
     d.group.scale.setScalar(0.001);
-    spawnFxAt(d.group.position, 'heart', '✨', 4);
-    speak(d, 'hello', 2.2);
+    spawnFxAt(d.group.position, 'heart', '✨', 4, { x: 0, y: 0 }, 1.6 * d.baseScale);
+    speak(d, chibi ? 'helloChibi' : 'hello', 2.2);
     playChirp();
   }
   scene.add(d.group);
   scene.add(d.shadow);
   dogs.push(d);
-  localStorage.setItem('pd_count', String(dogs.length));
+  if (chibi) localStorage.setItem('pd_chibi_count', String(dogs.filter((x) => x.isChibi).length));
+  else localStorage.setItem('pd_count', String(dogs.filter((x) => !x.isChibi).length));
   updateDogCountUI();
   return d;
 }
 
-function removeDog() {
-  if (dogs.length <= 1) return;
-  const d = dogs.pop();
+function removeDog(chibi) {
+  const kindDogs = dogs.filter((x) => x.isChibi === !!chibi);
+  if (!chibi && kindDogs.length <= 1) return; // 通常は1匹未満にはできない
+  if (chibi && kindDogs.length <= 0) return;
+  // 配列の後ろから、その種類の最後の1匹を探して削除
+  let idx = -1;
+  for (let i = dogs.length - 1; i >= 0; i--) {
+    if (dogs[i].isChibi === !!chibi) { idx = i; break; }
+  }
+  if (idx < 0) return;
+  const d = dogs[idx];
+  dogs.splice(idx, 1);
   scene.remove(d.group);
   scene.remove(d.shadow);
   if (d === fetcher) { if (ball) { scene.remove(ball); ball = null; } fetcher = null; ballState = 'none'; }
   if (d === treatEater) { if (treat) { scene.remove(treat); treat = null; } treatEater = null; }
-  localStorage.setItem('pd_count', String(dogs.length));
+  if (chibi) localStorage.setItem('pd_chibi_count', String(dogs.filter((x) => x.isChibi).length));
+  else localStorage.setItem('pd_count', String(dogs.filter((x) => !x.isChibi).length));
   updateDogCountUI();
 }
 
@@ -652,15 +668,21 @@ function focusedDog() { return nearestDogTo(camera.position.x, camera.position.z
 function angleTo(d) { return Math.atan2(camera.position.x - d.group.position.x, camera.position.z - d.group.position.z); }
 
 function updateDogCountUI() {
-  const el = document.getElementById('dog-count');
-  if (el) el.textContent = `${dogs.length}/${MAX_DOGS}`;
+  const normalCount = dogs.filter((d) => !d.isChibi).length;
+  const chibiCount = dogs.filter((d) => d.isChibi).length;
+  const elN = document.getElementById('dog-count');
+  if (elN) elN.textContent = `${normalCount}/${MAX_NORMAL}`;
+  const elC = document.getElementById('chibi-count');
+  if (elC) elC.textContent = `${chibiCount}/${MAX_CHIBI}`;
 }
 
-// モデル読み込み → 保存された匹数ぶん配置
+// モデル読み込み → 保存された匹数ぶん配置(通常+ちび)
 new GLTFLoader().load(`assets/piramidog.glb?v=tripo-self-1`, (gltf) => {
   modelProto = gltf.scene;
-  const saved = THREE.MathUtils.clamp(Number(localStorage.getItem('pd_count') || 1), 1, MAX_DOGS);
-  for (let i = 0; i < saved; i++) spawnDog();
+  const savedNormal = THREE.MathUtils.clamp(Number(localStorage.getItem('pd_count') || 1), 1, MAX_NORMAL);
+  const savedChibi = THREE.MathUtils.clamp(Number(localStorage.getItem('pd_chibi_count') || 0), 0, MAX_CHIBI);
+  for (let i = 0; i < savedNormal; i++) spawnDog();
+  for (let i = 0; i < savedChibi; i++) spawnDog({ chibi: true });
   window.piramidog = dogs[0];
   window.__dogs = dogs;
   updateDogCountUI();
@@ -795,7 +817,7 @@ function biteTreat() {
 function finishEating(d) {
   if (treat) { scene.remove(treat); treat = null; }
   d.eating = null;
-  spawnFxAt(d.group.position, 'heart', '💛', 3);
+  spawnFxAt(d.group.position, 'heart', '💛', 3, { x: 0, y: 0 }, 1.6 * d.baseScale);
   showBubble(d, randomOf((treatDef || TREATS.apple).lines), 2.5);
   playChirp();
   bond.add(3);
@@ -844,6 +866,7 @@ function pickUpBall() {
   scene.remove(ball);
   fetcher.mouth.add(ball);
   ball.position.set(0, 0, 0);
+  ball.scale.setScalar(1 / fetcher.baseScale); // ちびは group が0.5倍なので逆補正しないとボールが縮む
   ball.userData = {};
   playChirp();
   const dir = cameraGroundDir();
@@ -856,10 +879,11 @@ function dropBall() {
   if (!ball || !fetcher) { ballState = 'none'; return; }
   scene.attach(ball);
   ball.position.y = 0.17;
+  ball.scale.setScalar(1);
   ball.userData = {};
   ballState = 'none';
   fetcher.attend(angleTo(fetcher));
-  spawnFxAt(fetcher.group.position, 'heart', '💛', 2);
+  spawnFxAt(fetcher.group.position, 'heart', '💛', 2, { x: 0, y: 0 }, 1.6 * fetcher.baseScale);
   bond.add(3);
   speak(fetcher, 'ballReturn', 2.2);
   fetcher = null;
@@ -890,6 +914,7 @@ const LINES = {
   chase:   ['あれ、いっちゃった…', 'にげ足 はやいなぁ'],
   zoomies: ['うおおお たのしー!', 'びゅーん!'],
   hello:   ['こんにちは!', 'はじめまして!', 'なかまに いれて!'],
+  helloChibi: ['ちっちゃいけど よろしくね!', 'ちびだよ! よろしく!', 'ぼくも なかまに いれて!'],
   levelUp: ['きみと なかよしに なれた きがする!', 'えへへ、だいすきが ふえた!'],
 };
 
@@ -924,8 +949,8 @@ function worldToScreen(pos, yOffset = 0) {
   _v.set(pos.x, pos.y + yOffset, pos.z).project(camera);
   return { x: (_v.x * 0.5 + 0.5) * window.innerWidth, y: (-_v.y * 0.5 + 0.5) * window.innerHeight };
 }
-function spawnFxAt(worldPos, cls, char, count = 1, offset = { x: 0, y: 0 }) {
-  const s = worldToScreen(worldPos, 1.6);
+function spawnFxAt(worldPos, cls, char, count = 1, offset = { x: 0, y: 0 }, yOff = 1.6) {
+  const s = worldToScreen(worldPos, yOff);
   for (let i = 0; i < count; i++) {
     const el = document.createElement('span');
     el.className = `fx ${cls}`;
@@ -1064,7 +1089,7 @@ renderer.domElement.addEventListener('pointerdown', (e) => {
     petInterval = setTimeout(function petLoop() {
       pressedDog.petting = true;
       playPet();
-      spawnFxAt(pressedDog.group.position, 'note', randomOf(['♪', '💛', '♡']), 1);
+      spawnFxAt(pressedDog.group.position, 'note', randomOf(['♪', '💛', '♡']), 1, { x: 0, y: 0 }, 1.6 * pressedDog.baseScale);
       if (pets === 0 || Math.random() < 0.18) speak(pressedDog, region, 2);
       if (pets === 2) bond.add(2);
       pets++;
@@ -1105,7 +1130,9 @@ bindClick('btn-come', comeHere);
 bindClick('btn-ball', throwBall);
 bindClick('btn-treat', () => { giveTreat(TREAT_KINDS[treatIndex % TREAT_KINDS.length]); treatIndex++; });
 bindClick('btn-add', () => spawnDog({ pop: true }));
-bindClick('btn-remove', removeDog);
+bindClick('btn-remove', () => removeDog(false));
+bindClick('btn-add-chibi', () => spawnDog({ pop: true, chibi: true }));
+bindClick('btn-remove-chibi', () => removeDog(true));
 bindClick('btn-shot', () => {
   renderer.render(scene, camera);
   renderer.domElement.toBlob((blob) => {
@@ -1120,7 +1147,11 @@ bindClick('btn-shot', () => {
 
 updateHearts();
 
-window.__actions = { lookAtMe, comeHere, giveTreat, throwBall, spawnDog, removeDog };
+window.__actions = {
+  lookAtMe, comeHere, giveTreat, throwBall, spawnDog, removeDog,
+  spawnChibi: () => spawnDog({ pop: true, chibi: true }),
+  removeChibi: () => removeDog(true),
+};
 window.__setHour = (h) => { forcedHour = h; applyDaylight(currentHour()); };
 window.__bond = bond;
 
@@ -1159,7 +1190,7 @@ function animate() {
   if (bond.level !== lastBondLevel) {
     lastBondLevel = bond.level;
     const d = focusedDog();
-    if (d) { spawnFxAt(d.group.position, 'heart', '💛', 5); speak(d, 'levelUp', 3); }
+    if (d) { spawnFxAt(d.group.position, 'heart', '💛', 5, { x: 0, y: 0 }, 1.6 * d.baseScale); speak(d, 'levelUp', 3); }
   }
 
   if (treat) stepProjectile(treat, dt, playBounce);
@@ -1192,7 +1223,7 @@ function animate() {
   if (bubbleTimer > 0) {
     bubbleTimer -= dt;
     if (bubbleDog) {
-      const s = worldToScreen(bubbleDog.group.position, 1.75);
+      const s = worldToScreen(bubbleDog.group.position, 1.75 * bubbleDog.baseScale);
       bubbleEl.style.left = `${s.x}px`;
       bubbleEl.style.top = `${s.y}px`;
     }

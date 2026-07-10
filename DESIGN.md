@@ -48,11 +48,22 @@ assets/piramidog.glb  ──────────────→  GLTFLoader 
 3. **PyramidDogクラス**: ステートマシン+毎フレームのプロシージャルアニメ
    - 状態: `idle / walk / sleep / react / attend / eat / zoomies`(+petting フラグ)
      ※ごろん(roll)は動きが不自然で地面に埋まるため撤去
-   - **複数匹対応**: `dogs[]` 配列で管理(最大 `MAX_DOGS`=5)。`spawnDog({pop})` は
-     読み込み済みGLBを `clone(true)` して増やす(骨なしなので単純クローンでOK)。
-     匹数は localStorage `pd_count` に保存。各犬は独立して徘徊・睡眠・発話し、
-     影(blobShadow)も1匹1枚。タップ/なでは `pickDog()` が当たった犬に作用、
-     こっちむいて/おいで=全員、おやつ/ボール=一番近い犬(`focusedDog`/`nearestDogTo`)
+   - **複数匹対応**: `dogs[]` 配列で管理(通常最大 `MAX_NORMAL`=5、ちび最大 `MAX_CHIBI`=5)。
+     `spawnDog({pop})` は読み込み済みGLBを `clone(true)` して増やす(骨なしなので単純クローンでOK)。
+     匹数は localStorage `pd_count`(通常、最低1)/ `pd_chibi_count`(ちび、0〜5)に保存。
+     各犬は独立して徘徊・睡眠・発話し、影(blobShadow)も1匹1枚。タップ/なでは `pickDog()` が
+     当たった犬に作用、こっちむいて/おいで=全員、おやつ/ボール=一番近い犬(`focusedDog`/`nearestDogTo`)
+   - **ちびピラミッド犬**: `PyramidDog` は `constructor({ scale = 1 })` を受け取り、
+     `baseScale`(見た目の縮尺)と `isChibi`(`scale < 1`)を保持。「🐶➕ ちび」ボタンで
+     `spawnDog({ pop: true, chibi: true })` → `new PyramidDog({ scale: 0.5 })` を生成し、
+     通常犬と同じ `dogs[]` に混在させる(既存ロジックがそのまま全員に効く)。
+     ポップイン・ジャンプの高さ・影のスケールは `baseScale` 倍、歩行速度も
+     `baseScale` に応じて少しゆっくりに補正。吹き出し/エフェクトの表示高さ(`worldToScreen` の
+     yOffset)も `baseScale` 倍にして、頭上からズレないようにしている。
+     ボールをくわえる時は `fetcher.mouth.add(ball)` 直後に `ball.scale.setScalar(1 / fetcher.baseScale)`
+     で逆補正しないと、ちびの半分スケールに引きずられてボールまで縮んで見える(要注意ポイント)。
+     削除は `removeDog(chibi)` で種類を指定し、`dogs[]` の後ろからその種類の最後の1匹を削除。
+     通常は1匹未満にはできないが、ちびは0匹までOK。
    - 状態は `setState(state, 秒)` で遷移。時間切れで `chooseNext()` が次を抽選
      (低確率で zoomies / ちょうちょ追い / roll を混ぜる)
    - アニメは全て update() 内で計算(ホップ=|sin|、スクワッシュ、耳lift、まばたき、
